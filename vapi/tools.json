@@ -1,0 +1,333 @@
+[
+  {
+    "type": "function",
+    "async": false,
+    "function": {
+      "name": "lookup_customer",
+      "description": "Look up demo membership using caller-confirmed phone and name. A match does not verify identity.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "Callback number read back and confirmed by caller.",
+            "maxLength": 40,
+            "minLength": 1
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Full name supplied by caller.",
+            "maxLength": 100,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "phone_number"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "url": "https://YOUR-SERVICE.up.railway.app/vapi/tools",
+      "credentialId": "YOUR-VAPI-CUSTOM-CREDENTIAL-ID"
+    }
+  },
+  {
+    "type": "function",
+    "async": false,
+    "function": {
+      "name": "assess_situation",
+      "description": "Classify routine/urgent/review/emergency from reported facts. Never wait for this tool to speak emergency guidance. Unknown facts stay unknown.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "issue_type": {
+            "type": "string",
+            "enum": [
+              "maintenance",
+              "repair",
+              "no_heat",
+              "no_ac"
+            ],
+            "description": "Caller issue; no_heat/no_ac means a complete outage."
+          },
+          "hazard": {
+            "type": "string",
+            "enum": [
+              "none",
+              "gas_smell",
+              "co_alarm",
+              "smoke_fire",
+              "medical_emergency",
+              "unknown"
+            ],
+            "description": "Reported safety condition. Unknown when unresolved. Speak emergency guidance immediately before calling tools."
+          },
+          "vulnerable_occupant": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Caller reports older adult or medical vulnerability relevant to outage; null if unknown. No diagnoses needed."
+          },
+          "severe_weather": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Caller reports current extreme heat/cold; null if unknown. No live weather integration."
+          }
+        },
+        "required": [
+          "issue_type",
+          "hazard",
+          "vulnerable_occupant",
+          "severe_weather"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "url": "https://YOUR-SERVICE.up.railway.app/vapi/tools",
+      "credentialId": "YOUR-VAPI-CUSTOM-CREDENTIAL-ID"
+    }
+  },
+  {
+    "type": "function",
+    "async": false,
+    "function": {
+      "name": "check_service_area",
+      "description": "Check assumed demo coverage using borough/county and state. Unrecognized locations need review; no guessed address or ZIP geocoding.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "Caller-confirmed borough or county; do not infer from a phone area code.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "description": "Caller-confirmed state, e.g. NY.",
+            "maxLength": 40,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "location",
+          "state"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "url": "https://YOUR-SERVICE.up.railway.app/vapi/tools",
+      "credentialId": "YOUR-VAPI-CUSTOM-CREDENTIAL-ID"
+    }
+  },
+  {
+    "type": "function",
+    "async": false,
+    "function": {
+      "name": "create_service_request",
+      "description": "After caller approves summary and saving, persist one demo request per call. Only saved confirms recording. Returns priority and booking eligibility; urgent/review never auto-book.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "full_name": {
+            "type": "string",
+            "description": "Full name supplied by caller.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Callback number read back and confirmed by caller.",
+            "maxLength": 40,
+            "minLength": 1
+          },
+          "service_address": {
+            "type": "string",
+            "description": "Full street address, apartment/unit if any, borough and ZIP as supplied. Do not guess.",
+            "maxLength": 300,
+            "minLength": 1
+          },
+          "location": {
+            "type": "string",
+            "description": "Caller-confirmed borough or county; do not infer from a phone area code.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "description": "Caller-confirmed state, e.g. NY.",
+            "maxLength": 40,
+            "minLength": 1
+          },
+          "property_type": {
+            "type": "string",
+            "enum": [
+              "residential",
+              "commercial",
+              "unknown"
+            ],
+            "description": "Classify from caller statements or clarify; mixed-use ambiguity is unknown."
+          },
+          "issue_summary": {
+            "type": "string",
+            "description": "Problem summary; include unverified membership claim if lookup unresolved.",
+            "maxLength": 1000,
+            "minLength": 1
+          },
+          "system_type": {
+            "type": "string",
+            "description": "Affected equipment, or unknown if caller does not know.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "issue_started": {
+            "type": "string",
+            "description": "When it began as caller reported; not provided if unavailable.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "access_notes": {
+            "type": "string",
+            "description": "Caller-provided access notes, or none reported / not provided as appropriate.",
+            "maxLength": 300,
+            "minLength": 1
+          },
+          "consent_to_save": {
+            "type": "boolean",
+            "description": "True only after caller agrees to the summary and saving the request."
+          },
+          "issue_type": {
+            "type": "string",
+            "enum": [
+              "maintenance",
+              "repair",
+              "no_heat",
+              "no_ac"
+            ],
+            "description": "Caller issue; no_heat/no_ac means a complete outage."
+          },
+          "hazard": {
+            "type": "string",
+            "enum": [
+              "none",
+              "gas_smell",
+              "co_alarm",
+              "smoke_fire",
+              "medical_emergency",
+              "unknown"
+            ],
+            "description": "Reported safety condition. Unknown when unresolved. Speak emergency guidance immediately before calling tools."
+          },
+          "vulnerable_occupant": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Caller reports older adult or medical vulnerability relevant to outage; null if unknown. No diagnoses needed."
+          },
+          "severe_weather": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Caller reports current extreme heat/cold; null if unknown. No live weather integration."
+          }
+        },
+        "required": [
+          "full_name",
+          "phone_number",
+          "service_address",
+          "location",
+          "state",
+          "property_type",
+          "issue_summary",
+          "system_type",
+          "issue_started",
+          "access_notes",
+          "consent_to_save",
+          "issue_type",
+          "hazard",
+          "vulnerable_occupant",
+          "severe_weather"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "url": "https://YOUR-SERVICE.up.railway.app/vapi/tools",
+      "credentialId": "YOUR-VAPI-CUSTOM-CREDENTIAL-ID"
+    }
+  },
+  {
+    "type": "function",
+    "async": false,
+    "function": {
+      "name": "list_appointments",
+      "description": "List future demo windows for this call's saved eligible request. Slots are NOT held; use returned local_window wording and slot_id.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "Use the request_id returned by create_service_request in this same call.",
+            "maxLength": 100,
+            "minLength": 1
+          }
+        },
+        "required": [
+          "request_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "url": "https://YOUR-SERVICE.up.railway.app/vapi/tools",
+      "credentialId": "YOUR-VAPI-CUSTOM-CREDENTIAL-ID"
+    }
+  },
+  {
+    "type": "function",
+    "async": false,
+    "function": {
+      "name": "book_appointment",
+      "description": "After caller agrees to an exact returned window, atomically book it. Confirm only booked. On slot_unavailable get consent for a fresh alternative. Retry identical args after timeout.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "Use the request_id returned by create_service_request in this same call.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "slot_id": {
+            "type": "string",
+            "description": "Exact slot_id returned by availability for this request.",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "caller_confirmed": {
+            "type": "boolean",
+            "description": "True only after caller explicitly agrees to this exact demo window."
+          }
+        },
+        "required": [
+          "request_id",
+          "slot_id",
+          "caller_confirmed"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "server": {
+      "url": "https://YOUR-SERVICE.up.railway.app/vapi/tools",
+      "credentialId": "YOUR-VAPI-CUSTOM-CREDENTIAL-ID"
+    }
+  }
+]

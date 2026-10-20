@@ -1,28 +1,66 @@
-# Summit Air: customer lookup milestone
+# Summit Air phone-agent demo
 
-A TypeScript HTTP service for the Summit Air / Revin FDE demo. Your existing Vapi assistant and phone number remain in use. This adds one synchronous function tool: `lookup_customer`.
+A TypeScript backend for the Revin FDE case study: residential HVAC intake, membership lookup, urgency assessment, saved service requests, and bookings against a fictional schedule. Vapi handles voice and conversation. This service validates requests and owns the records and reservations.
 
-## What is built
+**Status:** local implementation and automated tests. Applying the prompt/tools in Vapi, Railway deployment, and live phone acceptance tests remain separate steps. No real technicians are dispatched and no external alerts are sent.
 
-- `POST /vapi/tools`: authenticated Vapi `tool-calls` webhook; returns a string result or string error for each `toolCallId`.
-- `GET /health`: public Railway readiness endpoint; no customer information.
-- Five fictional customers, including active, expired, non-member, and shared-number scenarios.
-- Strict lookup arguments, US/Canada number normalization, batch validation, body/header limits, constant-time secret comparison, and no raw request logging.
-- Zero production dependencies, compiled TypeScript, graceful shutdown, Railway config, and HTTP/lookup tests.
+## The six source files
 
-This is a read-only, in-memory demo. It does not save messages, create customers, dispatch technicians, book service, verify caller identity, or integrate a live CRM. Fixtures reset identically on restart. Membership has explicit seeded status, with no date-based expiry calculation. No membership benefits or pricing are asserted. The stored addresses are fictional and intentionally omitted from results.
+| File | Responsibility |
+| --- | --- |
+| `src/server.ts` | Read environment, open the database, start HTTP, handle shutdown. |
+| `src/app.ts` | Authenticate HTTP, validate the Vapi envelope, invoke tools, format results. |
+| `src/customers.ts` | Fictional customer data, phone/name normalization, membership lookup. |
+| `src/policy.ts` | Assumed coverage, structured urgency rules, emergency wording, input validation. |
+| `src/tools.ts` | Coordinate intake and booking tools, enforce consent/eligibility and call ownership. |
+| `src/store.ts` | SQLite persistence, dispatch review queue, availability and atomic booking. |
 
-## 1. Run locally
+`vapi/system-prompt.txt` is the complete proposed assistant prompt. `vapi/tools.json` contains six tool definitions. Both are reviewable source configuration: **editing them does not automatically change Vapi**. They have not been exported from the live assistant. Record changes here whenever you change the dashboard so reviewers see the configuration you intend to deploy. This replaces the old prompt addition, which prohibited all booking and referenced address data the lookup never returned.
 
-Install Node 24 LTS (Node 22.18+ also supports the test runner's TypeScript files). In this folder:
+`test/` contains HTTP and workflow tests. `scripts/review-queue.ts` reads the operator queue. `package.json` defines commands, `package-lock.json` fixes dependency versions, `tsconfig.json` controls compilation, `railway.json` defines deployment. `node_modules`, `dist`, local `.env`, and `data` are generated/private and ignored by Git.
+
+## Conversation order
+
+Problem -> immediate safety/urgency -> property suitability -> borough/county -> name and confirmed callback -> membership -> full address and technician details -> confirm summary and consent -> save -> book an eligible routine job or confirm review.
+
+Skip questions already answered. "My apartment" establishes residential context; otherwise ask "Is this for your home or a business location?" An office/store is commercial even when the caller is an existing member. Mixed-use/shared-building ambiguity needs review. No diagnosis or detailed medical history is collected, only whether an occupant is at risk without heating/cooling.
+
+Safety interrupts every stage. Emergency scripts live directly in the Vapi prompt so the assistant does not wait for backend/network access. The backend independently blocks booking based on the **structured facts it receives**; it cannot guarantee that a speech model recognized a hazard correctly. Voice safety scenarios must be tested as well as backend rules.
+
+## Demo assumptions and boundaries
+
+- Coverage: New York County/Manhattan, Kings County/Brooklyn, Queens County/Queens. These three were selected with the candidate because the assignment does not name them. Edit `demoCounties` in `src/policy.ts` after customer discovery. Outside/unknown areas go to coverage review, not an assertion of actual company refusal. Borough aliases resolve counties; this is not address verification/geocoding. Inconsistent address, borough or ZIP statements require clarification in conversation.
+- Residential only. Commercial jobs cannot be booked. Unknown property type is review-only.
+- Emergency: reported gas smell, CO alarm, smoke/fire, or immediate medical danger. Give emergency guidance without waiting for tools, membership or coverage. Do not book or imply emergency services were contacted.
+- Urgent: complete heating/cooling outage with reported vulnerable occupant or severe weather; also no heat November-March in New York time. These are conservative demo rules requiring customer approval, not clinical triage or live weather data.
+- Unresolved safety/outage risk -> review. Membership never overrides urgency.
+- Booking: two fictional two-hour windows per day over a rolling future schedule, one booking per window, weekends included. This is conservative capacity, **not a simulation of Summit Air's 40 technicians**, skills, travel times, working hours, or emergency reserves. Slots are stored in UTC; responses include `America/New_York` and a DST-aware `local_window`. No same-day urgent booking; dispatch reviews urgent cases separately.
+- One saved request per Vapi call, one booking per request. Correct before save. Changes after save, cancellation, rescheduling, or multiple properties need team review; no tools exist for those actions yet.
+- No production CRM, real dispatch alerts, outbound message delivery, prices, promised benefits, or callback SLA. The local queue is an actual saved demo handoff, not evidence someone is watching it. Production needs a staffed queue and acknowledged notifications before accepting unattended urgent calls.
+
+## Customer fixtures
+
+All names, phone numbers, addresses, and memberships are fictional. Addresses are intentionally not returned by lookup; ask the caller to supply theirs. Numbers are in the fictional 555-01xx range and are test inputs, not numbers to dial.
+
+| Name | Callback input | County | Membership |
+| --- | --- | --- | --- |
+| Alex Morgan | 212-555-0101 | New York | active |
+| Jordan Lee | 212-555-0102 | Kings | none |
+| Taylor Reed | 212-555-0103 | Queens | expired |
+| Sam Rivera | 212-555-0104 | Kings | active |
+| Casey Rivera | 212-555-0104 | Queens | none |
+
+The shared phone requires name clarification. Unknown number: 212-555-0199. Membership status is seeded, not date-calculated. A match is not identity verification and no-match is not proof someone is not a member. On request creation, the backend derives membership from phone/name rather than trusting a model-supplied membership flag.
+
+## Run locally
+
+Use Node **24.x**, including its built-in SQLite module (which currently prints an experimental warning). No production npm dependencies are required.
 
 ```sh
 npm ci
-cp .env.example .env
-openssl rand -hex 32
 ```
 
-Paste the generated value into `.env` as `VAPI_WEBHOOK_SECRET`. Keep this value private; do not commit `.env`.
+If `.env` already exists, preserve it. Otherwise copy `.env.example` to `.env`, generate a secret with `openssl rand -hex 32`, and replace the placeholder privately. Never put the secret in Vapi prompts, GitHub, screenshots, or chat.
 
 ```sh
 npm run check
@@ -30,80 +68,52 @@ npm run build
 npm run dev
 ```
 
-`npm start` runs the compiled server and expects environment variables supplied by the host; `npm run dev` loads `.env`. From another terminal in this folder:
+`npm run dev` loads `.env` and listens on port 3000 by default. `/health` returns `{"status":"ok"}`. Restart an already-running old server with Control+C then `npm run dev` to load these changes. Existing `.env` files do not need editing locally: the database defaults to `./data/summit-air.sqlite`.
 
-```sh
-curl --fail http://localhost:3000/health
-read -s VAPI_WEBHOOK_SECRET
-export VAPI_WEBHOOK_SECRET
-curl --fail-with-body http://localhost:3000/vapi/tools \
-  -H "Authorization: Bearer $VAPI_WEBHOOK_SECRET" \
-  -H 'Content-Type: application/json' \
-  --data-binary @vapi/request.json
-```
+`npm start` runs compiled JavaScript with host-provided environment variables. If using it locally with `.env`, run `node --env-file=.env dist/server.js` instead.
 
-When `read` waits, paste the same secret and press Enter. Expected: `results[0].toolCallId` is `demo-tool-call-1`; `result` is a JSON-encoded string with `status: found` and membership `active`.
+In a second terminal, `npm run queue` shows the latest 100 requests ordered urgent first, review second, routine third, including request details and any booking ID. This accesses an authenticated endpoint; a normal browser visit without the Bearer token gets 401. Set `BACKEND_URL` to the public HTTPS origin when reviewing a deployed service; the locally loaded secret must match that service. Output contains intake data: use fictional callers in this demo.
 
-## 2. Deploy with your new Railway account
+## Tools and persistence
 
-1. Put **this folder's contents** in a GitHub repository. Keep `.env` out. Include `package-lock.json`. If you use a larger repository, set Railway's service Root Directory to this folder's path within that repository.
-2. In Railway, create a project, choose **Deploy from GitHub repo**, connect GitHub if requested, and select that repository. No database is needed for this seeded milestone.
-3. In the service's **Variables**, add `VAPI_WEBHOOK_SECRET` with the random value you generated. Do not use your Vapi API key. Railway supplies `PORT` automatically.
-4. Deploy/redeploy after the variable is set. The checked-in `railway.json` installs dependencies, builds TypeScript, starts the service, and checks `/health`.
-5. In the service's networking settings, generate a public domain. Open `https://YOUR-SERVICE.up.railway.app/health`; expect `{"status":"ok"}`.
-6. Repeat the curl test above with that HTTPS domain instead of `http://localhost:3000`. A missing or incorrect secret should give HTTP 401. A valid request should return HTTP 200 and a matched result.
+| Tool | Input / result |
+| --- | --- |
+| `lookup_customer` | Confirmed `phone_number`, optional `full_name`; found/not_found/ambiguous/details_mismatch. |
+| `assess_situation` | Issue, hazard, vulnerability, weather; emergency/urgent/review/routine with a short script. |
+| `check_service_area` | Borough/county and state; covered or coverage_review under demo assumptions. |
+| `create_service_request` | Confirmed intake and consent; saved request ID, server-derived priority and booking eligibility. Emergencies/commercial jobs are not saved. |
+| `list_appointments` | Saved request ID; available demo windows, no hold. Urgent/review requests cannot use routine booking. |
+| `book_appointment` | Request ID, returned slot ID, caller consent; booked or slot_unavailable with alternatives. |
 
-Do the endpoint test before changing Vapi. If deployment fails, inspect Railway's build and deployment logs: missing secret means startup intentionally failed; an unhealthy deployment usually means the build/start command, root directory, or environment needs correction. This package binds to `0.0.0.0` and Railway's `PORT`.
+Vapi sends `POST /vapi/tools` with `Authorization: Bearer <secret>` and `message.type="tool-calls"`, `message.toolCallList`, and `message.call.id`. Arguments may be objects or JSON strings. The call ID comes from Vapi's authenticated envelope, not model-generated arguments, and scopes saved records to that call. Browser tests must supply the normal call context; bare manual requests without a call ID can use lookup/coverage/assessment, but cannot save or book.
 
-## 3. Connect the existing Vapi assistant
+The response contains one string `result` or string `error` per `toolCallId`. Malformed HTTP/envelopes fail with 4xx; valid envelopes use per-tool errors so one failed call does not break other results. Batches are not a transaction; each individual save/booking is atomic. Dependent calls must run sequentially after the prior result returns.
 
-Use a **Function** tool, synchronous (`async: false`), rather than an API Request tool. See `vapi/lookup_customer.json` for the complete tool configuration.
+SQLite stores requests, slots and bookings. `BEGIN IMMEDIATE` serializes writers sharing the file. A unique slot ID in the booking table prevents double booking; a unique request ID prevents multiple appointments for one request. The transaction checks availability and inserts the booking together. Listing alone does not reserve a slot. Two callers can hear the same offer; the first committed booking wins, the other receives a conflict and fresh alternatives requiring fresh caller consent.
 
-1. In Vapi, create a Custom Credential with Bearer authentication. Set its token to exactly the Railway `VAPI_WEBHOOK_SECRET` value, without adding `Bearer ` to the token itself. Vapi adds the authorization scheme.
-2. Create the function tool `lookup_customer`. Copy the description and parameter schema from `vapi/lookup_customer.json`.
-3. Set the **tool's** server URL to `https://YOUR-SERVICE.up.railway.app/vapi/tools` and select the credential created above (`server.credentialId` in JSON). Replace both placeholders if using the API JSON. Do not put your secret in the URL, schema, or assistant prompt.
-4. Attach that saved tool to your existing assistant and save/publish the assistant configuration as required by the dashboard. Keep the existing voice and end-call tool.
-5. Append `vapi/prompt-addition.txt` to the assistant system prompt. Reconcile its message-recording instruction with your current prompt: only claim recorded/delivered messages if you already have a separate working persistence or delivery integration.
-6. Keep the existing phone number assigned to this assistant. No replacement phone number is needed. Route only this function tool to this endpoint; it deliberately rejects unrelated webhook event types.
+Request creation is idempotent per Vapi call ID. An identical retry returns the same request ID; different intake for an already-saved call requires review. Booking retries for the same request/slot return the existing booking ID; a different slot cannot silently overwrite it. A timeout can occur after commit, so retry the same operation rather than assuming it failed. No automatic cross-call deduplication: repeat callers require review.
 
-The secret authenticates the webhook sender, not the human caller. A phone/name match is only demo context. For real customer data, add caller verification before disclosing private account information.
+## Deploy to Railway and connect Vapi
 
-## 4. Test in Vapi, then by phone
+1. Deploy this repository/folder with Node 24. Existing `railway.json` builds via `npm ci && npm run build`, starts `npm start`, and checks `/health`. Railway has announced config-as-code deprecation; the CLI showed compatibility through December 1, 2026. Migrate this config before that cutoff rather than treating the warning as an application failure.
+2. Add a **persistent Railway volume mounted at `/data`** and set `DATABASE_PATH=/data/summit-air.sqlite`. Run **one replica**. Railway startup refuses a missing/relative database path. Configuring an absolute path alone does not attach a volume: confirm the mount in the dashboard. Without the volume, redeploys can lose data and booking guarantees across deploys. The in-memory database is used only by test applications.
+3. Set `VAPI_WEBHOOK_SECRET` to the fresh private value used in your Vapi custom Bearer credential; Railway provides `PORT`. Keep the secret out of Git and generated artifacts.
+4. Obtain the public HTTPS domain and verify health, authenticated tools, and a missing-token 401 before changing Vapi. Do not use localhost as a Vapi server URL. No tunnel is configured.
+5. Create/update the six **synchronous Function tools**, using the parameter schemas in `vapi/tools.json`, with Strict off (nullable risk fields and optional lookup name). Set every tool's server URL to `https://YOUR-DOMAIN/vapi/tools` and select the saved `Summit Air Backend` credential. The JSON file is an array of reference tool definitions, not an API endpoint that creates multiple tools in one request. Create one tool at a time or use its fields in the dashboard.
+6. Apply `vapi/system-prompt.txt` as the assistant system prompt, replacing conflicting message-taking instructions. Preserve the existing voice and end-call tool. Set the assistant first-message field to the opening in the prompt if your assistant uses a fixed first message. Attach all six tools only once the public endpoint works. Keep the existing phone number assigned to this assistant.
+7. Call the number and perform the acceptance scenarios in `DEMO.md`. Confirm saved records with `npm run queue`. Close/restart the service and confirm bookings persist. Code tests alone do not prove Vapi speech behavior, live call context, networking, or volume durability.
 
-First use the assistant's browser test. State a demo name and callback number explicitly; your real caller ID won't match the seed. Confirm one `lookup_customer` invocation and inspect the corresponding tool response in Vapi's call/webhook logs. Then call your existing Vapi number and repeat.
+## Before production
 
-| Caller details | Expected lookup | Expected conversation |
-| --- | --- | --- |
-| Alex Morgan, 202-555-0101 | found / active | Continue intake; ask for address; no benefits or booking promises |
-| Jordan Lee, 202-555-0102 | found / none | Continue normal service intake |
-| Taylor Reed, 202-555-0103 | found / expired | Do not describe membership as active |
-| 202-555-0104 without name | ambiguous | Ask for full name without listing candidates |
-| Sam Rivera, 202-555-0104 | found / active | Resolve shared phone to Sam |
-| Casey Rivera, 202-555-0104 | found / none | Resolve shared phone to Casey |
-| Wrong Person, 202-555-0101 | details_mismatch | Confirm details; retry once; continue intake if unresolved |
-| New Caller, 202-555-0199 | not_found | Continue as a new caller |
-| Invalid number, e.g. 123 | tool error | Ask for a valid callback number |
-| Wrong credential in a temporary test tool | HTTP 401 | Tool failure; assistant continues intake without claiming no match |
-| Caller reports immediate danger | Emergency prompt takes priority | Do not wait for customer lookup or troubleshoot |
+Use a real scheduling/CRM integration or a shared transactional database with constraints, model technician skills/travel/capacity, add verified geography and customer-approved rules, provide caller identity verification before sensitive disclosures, separate operator credentials from the Vapi secret, add monitoring/alert acknowledgment, rate limits, backups, retention and recovery procedures. SQLite's synchronous access and single-volume deployment are deliberate small-demo tradeoffs; don't horizontally scale independent database files.
 
-For each call check: one question at a time, callback readback, caller-provided service address, concise problem description, no appointment/dispatch/time guarantee, and proper end-call behavior. Use a temporary test tool for failure tests so your saved working credential is preserved. Restore the good tool configuration afterward.
+## Sources
 
-## Contract and failure behavior
+- Vapi tool protocol: https://docs.vapi.ai/tools/custom-tools
+- Vapi authentication: https://docs.vapi.ai/server-url/server-authentication
+- Railway persistent volumes: https://docs.railway.com/volumes
+- Node built-in SQLite: https://nodejs.org/api/sqlite.html
+- NYC borough/county names: https://portal.311.nyc.gov/article/?kanumber=KA-02877
+- Gas emergency guidance: https://www.coned.com/en/safety/energy-safety/gas-safety
 
-Tool arguments: `{ "phone_number": "202-555-0101", "full_name": "Alex Morgan" }`. `phone_number` is required; `full_name` is optional but recommended. No extra properties. Phone matching is exact after normalization; names are case/whitespace normalized, with no fuzzy matching. If a supplied name disagrees with a phone match, no customer record is returned.
-
-Vapi requests may carry object arguments or JSON-string arguments. This service reads `message.toolCallList`; Vapi's additional envelope metadata is permitted and ignored. Each batch must have 1–20 unique IDs. Unknown tools and bad arguments receive per-call string `error` values under HTTP 200, allowing other calls in the batch to succeed. Malformed envelopes/JSON return 400; invalid credentials 401; wrong method 405; oversized body 413; wrong content type 415. Retried read-only lookups are safe. HTTP failures/timeouts should fall back to normal intake, never be interpreted as `not_found`.
-
-## Acceptance and next milestone
-
-This milestone is accepted when automated checks pass, Railway `/health` and the authenticated lookup work, and the existing phone assistant successfully handles the active, non-member, unknown, and failure scenarios. Deployment and live-call checks require your accounts; local tests alone do not establish those results.
-
-The next backend milestone is persisted `create_service_request` with a real delivery destination and idempotency. Only then should this backend support saying a message was recorded. Before using real CRM data, replace fixtures with an authorized adapter, enforce caller verification and minimal disclosure, and add rate limiting, operational monitoring, and access/retention controls suited to that data.
-
-## Reference documentation
-
-- Vapi function tool request/response contract: https://docs.vapi.ai/tools/custom-tools
-- Vapi event envelope: https://docs.vapi.ai/server-url/events
-- Vapi credential authentication: https://docs.vapi.ai/server-url/server-authentication
-- Railway health checks and PORT: https://docs.railway.com/deployments/healthchecks
-- Railway config as code: https://docs.railway.com/config-as-code/reference
+The emergency wording is grounded in utility guidance. The HVAC priority thresholds and fictional booking capacity are demo business assumptions requiring approval, not medical recommendations.

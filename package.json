@@ -1,6 +1,21 @@
 {
-  "name": "summit-air-lookup", "version": "1.0.0", "private": true, "type": "module",
-  "engines": {"node": ">=22.18.0"},
-  "scripts": {"dev": "node --env-file=.env src/server.ts", "build": "tsc", "start": "node dist/server.js", "test": "node --test test/*.test.ts", "check": "tsc --noEmit && npm test"},
-  "devDependencies": {"@types/node": "^24.0.0", "typescript": "^5.9.0"}
+  "name": "summit-air-backend",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "node --test --test-timeout=20000 test/*.test.ts",
+    "check": "tsc --noEmit && npm test",
+    "queue": "node --env-file=.env scripts/review-queue.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
 }

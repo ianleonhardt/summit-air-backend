@@ -1,6 +1,8 @@
 import { createServer, type ServerResponse } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { lookupCustomer, object, ValidationError } from './customers.ts';
+import { object, ValidationError } from './customers.ts';
+import { openStore, type Store } from './store.ts';
+import { runTool } from './tools.ts';
 
 function reply(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
@@ -10,13 +12,18 @@ function authenticated(header: string | undefined, secret: string) {
   const digest = (value: string) => createHash('sha256').update(value).digest();
   return timingSafeEqual(digest(header ?? ''), digest(`Bearer ${secret}`));
 }
-export function createApp(secret: string) {
+export function createApp(secret: string, store?: Store) {
   if (secret.length < 32 || secret.trim() !== secret || /\s/.test(secret) || secret.startsWith('replace-')) throw new Error('VAPI_WEBHOOK_SECRET must be a random non-whitespace secret of at least 32 characters.');
-  return createServer({ requestTimeout: 10_000, headersTimeout: 10_000, maxHeaderSize: 8192 }, async (req, res) => {
+  const database = store ?? openStore(':memory:');
+  const server = createServer({ requestTimeout: 10_000, headersTimeout: 10_000, maxHeaderSize: 8192 }, async (req, res) => {
     try {
       if (req.method === 'GET' && req.url === '/health') return reply(res, 200, { status: 'ok' });
-      if (req.url !== '/vapi/tools') return reply(res, 404, { error: 'Not found' });
+      if (req.url !== '/vapi/tools' && req.url !== '/admin/requests') return reply(res, 404, { error: 'Not found' });
       if (!authenticated(req.headers.authorization, secret)) return reply(res, 401, { error: 'Unauthorized' });
+      if (req.url === '/admin/requests') {
+        if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return reply(res, 405, { error: 'Method not allowed' }); }
+        return reply(res, 200, { demo: true, requests: database.queue() });
+      }
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return reply(res, 405, { error: 'Method not allowed' }); }
       if (req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return reply(res, 415, { error: 'Expected application/json' });
       const chunks: Buffer[] = [];
@@ -39,14 +46,14 @@ export function createApp(secret: string) {
       }
       const results = calls.map((call: Record<string, unknown>) => {
         try {
-          if (call.type !== 'function' || !object(call.function) || call.function.name !== 'lookup_customer') throw new ValidationError('Unsupported tool. Expected lookup_customer.');
+          if (call.type !== 'function' || !object(call.function) || typeof call.function.name !== 'string') throw new ValidationError('Expected a function tool with a name.');
           let args: unknown = call.function.arguments;
           if (typeof args === 'string') {
             try { args = JSON.parse(args); } catch { throw new ValidationError('Tool arguments must be valid JSON.'); }
           }
-          return { toolCallId: call.id, result: JSON.stringify(lookupCustomer(args)) };
+          return { toolCallId: call.id, result: JSON.stringify(runTool(call.function.name, args, object(message?.call) && typeof message.call.id === 'string' && message.call.id.trim() ? message.call.id : undefined, database)) };
         } catch (error) {
-          return { toolCallId: call.id, error: error instanceof ValidationError ? error.message : 'Lookup unavailable. Continue intake without customer details.' };
+          return { toolCallId: call.id, error: error instanceof ValidationError ? error.message : 'Tool unavailable. Do not claim a request was saved or booked. Retry the identical operation or ask the team to verify the outcome.' };
         }
       });
       return reply(res, 200, { results });
@@ -56,4 +63,6 @@ export function createApp(secret: string) {
       else res.end();
     }
   });
+  if (!store) server.on('close', () => database.close());
+  return server;
 }

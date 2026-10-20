@@ -1,14 +1,14 @@
 // Entirely fictional fixtures. Replace this repository with a CRM adapter later.
 export interface Customer {
-  id: string; fullName: string; phone: string; serviceAddress: string;
+  id: string; fullName: string; phone: string; serviceAddress: string; county: string;
   membership: { status: 'active' | 'expired' | 'none'; plan: string | null };
 }
 export const customers: readonly Customer[] = [
-  { id: 'demo-001', fullName: 'Alex Morgan', phone: '+12025550101', serviceAddress: '101 Summit Demo Lane, Denver, CO 80202', membership: { status: 'active', plan: 'Summit Comfort Club' } },
-  { id: 'demo-002', fullName: 'Jordan Lee', phone: '+12025550102', serviceAddress: '202 Alpine Demo Avenue, Denver, CO 80203', membership: { status: 'none', plan: null } },
-  { id: 'demo-003', fullName: 'Taylor Reed', phone: '+12025550103', serviceAddress: '303 Mountain Demo Road, Denver, CO 80204', membership: { status: 'expired', plan: 'Summit Comfort Club' } },
-  { id: 'demo-004', fullName: 'Sam Rivera', phone: '+12025550104', serviceAddress: '404 Peak Demo Street, Denver, CO 80205', membership: { status: 'active', plan: 'Summit Comfort Club' } },
-  { id: 'demo-005', fullName: 'Casey Rivera', phone: '+12025550104', serviceAddress: '505 Valley Demo Court, Denver, CO 80206', membership: { status: 'none', plan: null } }
+  { id: 'demo-001', fullName: 'Alex Morgan', phone: '+12125550101', serviceAddress: '101 Demo Lane, Apt 4B, Manhattan, NY 10001', county: 'New York', membership: { status: 'active', plan: 'Summit Comfort Club' } },
+  { id: 'demo-002', fullName: 'Jordan Lee', phone: '+12125550102', serviceAddress: '202 Demo Avenue, Brooklyn, NY 11201', county: 'Kings', membership: { status: 'none', plan: null } },
+  { id: 'demo-003', fullName: 'Taylor Reed', phone: '+12125550103', serviceAddress: '303 Demo Road, Queens, NY 11375', county: 'Queens', membership: { status: 'expired', plan: 'Summit Comfort Club' } },
+  { id: 'demo-004', fullName: 'Sam Rivera', phone: '+12125550104', serviceAddress: '404 Demo Street, Apt 2A, Brooklyn, NY 11215', county: 'Kings', membership: { status: 'active', plan: 'Summit Comfort Club' } },
+  { id: 'demo-005', fullName: 'Casey Rivera', phone: '+12125550104', serviceAddress: '505 Demo Court, Queens, NY 11101', county: 'Queens', membership: { status: 'none', plan: null } }
 ];
 
 export class ValidationError extends Error {}
@@ -30,8 +30,8 @@ export function lookupCustomer(input: unknown) {
   const byPhone = customers.filter(customer => customer.phone === phone);
   const name = typeof input.full_name === 'string' ? normalizeName(input.full_name) : undefined;
   const matches = name ? byPhone.filter(customer => normalizeName(customer.fullName) === name) : byPhone;
-  if (byPhone.length === 0) return { status: 'not_found', demo: true, identity_verified: false, next_action: 'Continue collecting the caller name, callback number, address, and service issue.' };
-  if (matches.length !== 1) return { status: matches.length > 1 ? 'ambiguous' : 'details_mismatch', demo: true, identity_verified: false, next_action: 'Ask the caller for their full name and confirm the callback number. Do not reveal candidate records. If still unresolved, continue intake for team review.' };
+  if (byPhone.length === 0) return { status: 'not_found', demo: true, identity_verified: false };
+  if (matches.length !== 1) return { status: matches.length > 1 ? 'ambiguous' : 'details_mismatch', demo: true, identity_verified: false };
   const customer = matches[0]!;
-  return { status: 'found', demo: true, identity_verified: false, customer: { id: customer.id, full_name: customer.fullName, membership: customer.membership }, next_action: 'Ask the caller to provide their service address. Membership is a demo record; do not promise benefits, dispatch, availability, or an appointment.' };
+  return { status: 'found', demo: true, identity_verified: false, customer: { id: customer.id, full_name: customer.fullName, membership: customer.membership } };
 }
