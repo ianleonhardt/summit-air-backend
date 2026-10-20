@@ -63,12 +63,12 @@ test('saved request is idempotent, retains intake details, and derives membershi
     assert.throws(()=>execute(store,'create_service_request',{...input,unexpected:true},'other'));
   } finally {store.close();}
 });
-test('commercial rejected; urgent and unverified coverage/property are saved but cannot book', () => {
+test('commercial rejected; unresolved safety, coverage and property cannot book', () => {
   const store=openStore(':memory:');
   try {
     assert.equal(execute(store,'create_service_request',{...input,property_type:'commercial'}).status,'unsupported_property');
     assert.equal(store.queue().length,0);
-    const cases=[{issue_type:'no_ac',vulnerable_occupant:true},{location:'Bronx'},{property_type:'unknown'},{hazard:'unknown'}];
+    const cases=[{issue_type:'no_ac',vulnerable_occupant:true,location:'Bronx'},{location:'Bronx'},{property_type:'unknown'},{hazard:'unknown'},{issue_type:'no_heat',vulnerable_occupant:true,hazard:'unknown'}];
     cases.forEach((change,i)=>{
       const callId=`review-${i}`;
       const saved=execute(store,'create_service_request',{...input,...change},callId);
@@ -139,4 +139,39 @@ test('two simultaneous independent workers compete for one slot: exactly one boo
     assert.equal(results.filter(r=>r.status==='slot_unavailable').length,1);
     assert.equal(store.queue().filter(r=>r.booking_id).length,1);
   } finally {await Promise.all(workers.map(w=>w.terminate()));store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test('urgent HVAC has separate future windows with consent and collision protection', () => {
+  const store=openStore(':memory:');
+  try {
+    const urgent={...input,issue_type:'no_heat',vulnerable_occupant:true};
+    const a=execute(store,'create_service_request',urgent,'urgent-a');
+    const b=execute(store,'create_service_request',urgent,'urgent-b');
+    assert.equal(a.priority,'urgent'); assert.equal(a.automatic_booking_allowed,true);
+    const listed=execute(store,'list_appointments',{request_id:a.request_id},'urgent-a');
+    assert.ok(listed.slots.length>0);
+    assert.ok(listed.slots.every((s:any)=>s.slot_id.startsWith('urgent-demo-') && +new Date(s.start_at)>+now));
+    const regular=execute(store,'create_service_request',input,'routine');
+    const regularSlot=execute(store,'list_appointments',{request_id:regular.request_id},'routine').slots[0];
+    const args={request_id:a.request_id,slot_id:listed.slots[0].slot_id,caller_confirmed:true};
+    assert.throws(()=>execute(store,'book_appointment',{...args,caller_confirmed:false},'urgent-a'));
+    assert.throws(()=>execute(store,'book_appointment',{...args,slot_id:regularSlot.slot_id},'urgent-a'));
+    assert.throws(()=>execute(store,'book_appointment',{...args,request_id:regular.request_id},'routine'));
+    const booked=execute(store,'book_appointment',args,'urgent-a');
+    assert.equal(booked.status,'booked');
+    assert.equal(execute(store,'book_appointment',args,'urgent-a').booking_id,booked.booking_id);
+    const collision=execute(store,'book_appointment',{...args,request_id:b.request_id},'urgent-b');
+    assert.equal(collision.status,'slot_unavailable');
+    assert.ok(collision.alternatives.every((s:any)=>s.slot_id.startsWith('urgent-demo-')));
+  } finally {store.close();}
+});
+
+test('known negative outage answers allow routine booking, unknown answers require clarification', () => {
+  const store=openStore(':memory:');
+  try {
+    const routine=execute(store,'create_service_request',{...input,issue_type:'no_heat'},'known');
+    assert.equal(routine.automatic_booking_allowed,true);
+    const unresolved=execute(store,'create_service_request',{...input,issue_type:'no_heat',vulnerable_occupant:undefined,severe_weather:undefined},'unknown');
+    assert.equal(unresolved.automatic_booking_allowed,false);
+  } finally {store.close();}
 });

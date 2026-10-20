@@ -9,7 +9,7 @@ Don't call it production-ready. Explain the boundary once, then demonstrate rath
 ## Live demo (after integration)
 
 1. Routine maintenance: Alex Morgan, 212-555-0101, Manhattan home. Confirm callback, give full fictional address including unit, ask for furnace maintenance. Approve intake and one offered window. Expect saved request and one booked demo appointment. Show request/booking in the queue.
-2. Urgent: caller in Queens reports AC fully out and an older adult at risk. Expect urgency questions before membership, saved priority request, no routine booking, no arrival promise, and explicit demo queue confirmation. Show that the record is above routine jobs in the queue. Don't pretend an alert was sent.
+2. Urgent: caller in Queens reports AC fully out and an older adult at risk. Expect urgency questions before membership, saved priority request, reserved urgent windows, and booking only after caller consent and a successful booking result. Show that the record is above routine jobs in the queue. Don't pretend an alert was sent.
 3. If time: gas smell. Expect emergency wording immediately without waiting for identity, coverage, or the backend. Stop booking. This verifies conversation behavior, not just the structured triage function.
 
 ## Acceptance scenarios
@@ -49,7 +49,7 @@ Availability is an offer, not a reservation. The database commits a booking only
 There is short prewritten guidance in the system prompt, so the agent doesn't need to invent wording or wait for an HTTP call. For gas/CO/fire: leave, get to safety, call 911 from outside; contact the appropriate utility for suspected gas. Immediate medical danger: call 911 and follow the dispatcher. The backend separately blocks appointments when a structured emergency is reported. Recognition still depends on the voice model; prompt plus code is not a guarantee, and I test emergency interruptions and tool outages in live calls.
 
 **"What does urgent actually do? Is a technician on the way?"**
-It creates a persisted priority record at the top of the demo review queue and prevents a routine appointment from disguising an urgent case. No technician is dispatched and no notification is sent. Before production we need an on-call destination, customer-approved response policy, alert delivery acknowledgment and escalation if nobody responds. I'd never tell a caller someone is on the way based only on a priority flag.
+It creates a persisted priority record and permits booking from reserved urgent windows when coverage, property, and immediate hazard checks pass. No technician is dispatched and no notification is sent. Before production we need an on-call destination, customer-approved response policy, alert delivery acknowledgment and escalation if nobody responds. I'd never tell a caller someone is on the way based only on a priority flag.
 
 **"We have 40 technicians. Why so few slots?"**
 This is a deliberately small fictional schedule to demonstrate a real reservation and conflict behavior. It doesn't claim to optimize your fleet. I'd discover technician skills, geography, work hours, expected job lengths, emergency reserves, and the existing scheduling source of truth before connecting real capacity. Weather peaks need capacity controls, not promises of instant service.
@@ -81,3 +81,6 @@ Rollout proposal: confirm counties, supported equipment/property types, urgency 
 - Slot conflict: expected business outcome, offer alternatives; not a crash.
 - Data vanished: check persistent volume mount and `DATABASE_PATH`; don't book new jobs until resolved.
 - Queue empty after caller heard success: inspect actual tool result; prompt must only confirm saved/booked statuses. Do not claim a delivery integration exists.
+
+
+Updated urgent booking policy: covered residential HVAC outages with no immediate hazard may book reserved urgent windows. Reserved windows are 8am, noon, 4pm and 8pm New York time within the next 36 hours, with at least one hour lead time and a two-hour duration. Routine and urgent capacity are separate; each window permits one booking. Unknown hazard, property, or coverage still blocks booking. Clarify missing outage risk facts before saving; preserve explicit yes/no answers. Emergency hazards never book. This is simulated inventory with no real dispatch or alerts.

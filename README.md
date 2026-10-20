@@ -34,7 +34,7 @@ Safety interrupts every stage. Emergency scripts live directly in the Vapi promp
 - Emergency: reported gas smell, CO alarm, smoke/fire, or immediate medical danger. Give emergency guidance without waiting for tools, membership or coverage. Do not book or imply emergency services were contacted.
 - Urgent: complete heating/cooling outage with reported vulnerable occupant or severe weather; also no heat November-March in New York time. These are conservative demo rules requiring customer approval, not clinical triage or live weather data.
 - Unresolved safety/outage risk -> review. Membership never overrides urgency.
-- Booking: two fictional two-hour windows per day over a rolling future schedule, one booking per window, weekends included. This is conservative capacity, **not a simulation of Summit Air's 40 technicians**, skills, travel times, working hours, or emergency reserves. Slots are stored in UTC; responses include `America/New_York` and a DST-aware `local_window`. No same-day urgent booking; dispatch reviews urgent cases separately.
+- Booking: two fictional two-hour windows per day over a rolling future schedule, one booking per window, weekends included. This is conservative capacity, **not a simulation of Summit Air's 40 technicians**, skills, travel times, working hours, or real emergency staffing. Slots are stored in UTC; responses include `America/New_York` and a DST-aware `local_window`. Urgent HVAC requests use separate reserved windows as detailed below.
 - One saved request per Vapi call, one booking per request. Correct before save. Changes after save, cancellation, rescheduling, or multiple properties need team review; no tools exist for those actions yet.
 - No production CRM, real dispatch alerts, outbound message delivery, prices, promised benefits, or callback SLA. The local queue is an actual saved demo handoff, not evidence someone is watching it. Production needs a staffed queue and acknowledged notifications before accepting unattended urgent calls.
 
@@ -82,7 +82,7 @@ In a second terminal, `npm run queue` shows the latest 100 requests ordered urge
 | `assess_situation` | Issue, hazard, vulnerability, weather; emergency/urgent/review/routine with a short script. |
 | `check_service_area` | Borough/county and state; covered or coverage_review under demo assumptions. |
 | `create_service_request` | Confirmed intake and consent; saved request ID, server-derived priority and booking eligibility. Emergencies/commercial jobs are not saved. |
-| `list_appointments` | Saved request ID; available demo windows, no hold. Urgent/review requests cannot use routine booking. |
+| `list_appointments` | Saved request ID; available demo windows, no hold. Urgent requests use reserved capacity; unresolved review cases cannot book. |
 | `book_appointment` | Request ID, returned slot ID, caller consent; booked or slot_unavailable with alternatives. |
 
 Vapi sends `POST /vapi/tools` with `Authorization: Bearer <secret>` and `message.type="tool-calls"`, `message.toolCallList`, and `message.call.id`. Arguments may be objects or JSON strings. The call ID comes from Vapi's authenticated envelope, not model-generated arguments, and scopes saved records to that call. Browser tests must supply the normal call context; bare manual requests without a call ID can use lookup/coverage/assessment, but cannot save or book.
@@ -129,3 +129,6 @@ Demo availability is generated for the next seven days at 14:00 and 18:00 UTC, e
 If call logs show HTTP 401, check that the saved Vapi Bearer Token credential exactly matches Railway's `VAPI_WEBHOOK_SECRET`. Direct backend authentication succeeding does not prove Vapi's saved token matches. Never disable authentication to resolve this.
 
 Turn-taking tuning: Wait Seconds 0.8; On Punctuation Seconds 0.6; On No Punctuation Seconds 1.5; On Number Seconds 1.5; Back Off Seconds 2. These allow pauses while reading numbers and give the caller time after interrupting. Validate with another live call. Before publishing from another browser tab, refresh it and check the current prompt plus all seven attached tools (six backend functions and end_after_message); an old draft can overwrite newer settings.
+
+
+Updated urgent booking policy: covered residential HVAC outages with no immediate hazard may book reserved urgent windows. Reserved windows are 8am, noon, 4pm and 8pm New York time within the next 36 hours, with at least one hour lead time and a two-hour duration. Routine and urgent capacity are separate; each window permits one booking. Unknown hazard, property, or coverage still blocks booking. Clarify missing outage risk facts before saving; preserve explicit yes/no answers. Emergency hazards never book. This is simulated inventory with no real dispatch or alerts.

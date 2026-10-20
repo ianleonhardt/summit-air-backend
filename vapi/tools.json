@@ -37,7 +37,7 @@
     "async": false,
     "function": {
       "name": "assess_situation",
-      "description": "Classify routine/urgent/review/emergency from reported facts. Never wait for this tool to speak emergency guidance. Unknown facts stay unknown.",
+      "description": "Classify urgency from reported facts. Urgent HVAC can use reserved priority appointments; unresolved risks need clarification before saving. Speak emergency guidance immediately.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -65,11 +65,11 @@
           },
           "vulnerable_occupant": {
             "type": "boolean",
-            "description": "Caller reports older adult or medical vulnerability relevant to outage; omit if unknown. No diagnoses needed."
+            "description": "True for a reported vulnerable occupant; false for an explicit no. Preserve the caller answer; omit ONLY if not answered."
           },
           "severe_weather": {
             "type": "boolean",
-            "description": "Caller reports current extreme heat/cold; omit if unknown. No live weather integration."
+            "description": "True for reported extreme heat/cold, false when explicitly denied; omit only if unresolved. Ask a targeted weather question for outages."
           }
         },
         "required": [
@@ -164,7 +164,7 @@
               "commercial",
               "unknown"
             ],
-            "description": "Classify from caller statements or clarify; mixed-use ambiguity is unknown."
+            "description": "My apartment, my house or my home means residential. Never ask home vs business again after such a statement. Unknown only if genuinely ambiguous."
           },
           "issue_summary": {
             "type": "string",
@@ -218,11 +218,11 @@
           },
           "vulnerable_occupant": {
             "type": "boolean",
-            "description": "Caller reports older adult or medical vulnerability relevant to outage; omit if unknown. No diagnoses needed."
+            "description": "True for a reported vulnerable occupant; false for an explicit no. Preserve the caller answer; omit ONLY if not answered."
           },
           "severe_weather": {
             "type": "boolean",
-            "description": "Caller reports current extreme heat/cold; omit if unknown. No live weather integration."
+            "description": "True for reported extreme heat/cold, false when explicitly denied; omit only if unresolved. Ask a targeted weather question for outages."
           }
         },
         "required": [
@@ -253,7 +253,7 @@
     "async": false,
     "function": {
       "name": "list_appointments",
-      "description": "List future demo windows for this call's saved eligible request. Slots are NOT held; use returned local_window wording and slot_id.",
+      "description": "List available appointment windows for this saved request. Backend selects regular or reserved urgent capacity. Slots are not held; use returned local_window and slot_id.",
       "parameters": {
         "type": "object",
         "properties": {

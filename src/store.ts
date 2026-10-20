@@ -23,7 +23,20 @@ export function openStore(path: string) {
     try { const result = run(); db.exec('COMMIT'); return result; }
     catch (error) { db.exec('ROLLBACK'); throw error; }
   }
-  function seedSlots(now: Date) {
+  function seedSlots(now: Date, priority = 'routine') {
+    if (priority === 'urgent') {
+      const insert = db.prepare('INSERT OR IGNORE INTO slots VALUES (?, ?, ?)');
+      // Reserved urgent windows in the next 36 hours, at 8am/noon/4pm/8pm New York time.
+      for (let hours = 1; hours <= 36; hours++) {
+        const start = new Date(now); start.setUTCMinutes(0, 0, 0); start.setUTCHours(start.getUTCHours() + hours);
+        if (+start - +now < 3600000) continue;
+        const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(start));
+        if (![8, 12, 16, 20].includes(hour)) continue;
+        const startAt = start.toISOString();
+        insert.run(`urgent-demo-${startAt}`, startAt, new Date(+start + 2 * 3600000).toISOString());
+      }
+      return;
+    }
     // Two conservative demo windows/day, not a model of the real 40-tech fleet.
     const insert = db.prepare('INSERT OR IGNORE INTO slots VALUES (?, ?, ?)');
     for (let day = 1; day <= 7; day++) for (const hour of [14, 18]) {
@@ -37,10 +50,10 @@ export function openStore(path: string) {
     const end = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(String(row.end_at)));
     return { ...row, local_window: `${start} to ${end}` };
   }
-  function available(now: Date) {
-    seedSlots(now);
+  function available(now: Date, priority = 'routine') {
+    seedSlots(now, priority);
     return db.prepare(`SELECT s.id AS slot_id, s.start_at, s.end_at FROM slots s
-      LEFT JOIN bookings b ON b.slot_id=s.id WHERE b.id IS NULL AND s.start_at > ? ORDER BY s.start_at LIMIT 6`).all(now.toISOString()).map(row => slotView(row));
+      LEFT JOIN bookings b ON b.slot_id=s.id WHERE b.id IS NULL AND s.start_at > ? AND s.id LIKE ? ORDER BY s.start_at LIMIT 6`).all(now.toISOString(), priority === 'urgent' ? 'urgent-demo-%' : 'demo-%').map(row => slotView(row));
   }
   function getRequest(id: string, callId: string) {
     const row = db.prepare('SELECT * FROM requests WHERE id=? AND call_id=?').get(id, callId);
@@ -67,7 +80,9 @@ export function openStore(path: string) {
     book(requestId: string, callId: string, slotId: string, now: Date) {
       return transaction(() => {
         const request = getRequest(requestId, callId);
-        if (request.priority !== 'routine' || request.payload.coverage.status !== 'covered') throw new ValidationError('This request requires team review and cannot be booked automatically.');
+        if (!['routine', 'urgent'].includes(request.priority) || request.payload.coverage.status !== 'covered' || request.payload.property_type !== 'residential' || request.payload.hazard !== 'none') throw new ValidationError('This request requires team review and cannot be booked automatically.');
+        const expectedPrefix = request.priority === 'urgent' ? 'urgent-demo-' : 'demo-';
+        if (!slotId.startsWith(expectedPrefix)) throw new ValidationError('Slot is not in this request priority schedule. List appointments again.');
         const existing = db.prepare('SELECT * FROM bookings WHERE request_id=?').get(requestId);
         if (existing) {
           if (existing.slot_id !== slotId) throw new ValidationError('Request already booked in a different slot. Rescheduling requires team review.');

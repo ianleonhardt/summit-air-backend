@@ -28,19 +28,21 @@ export function runTool(name: string, input: unknown, callId: string | undefined
       ...risk, membership, coverage, triage_reason: triage.reason
     };
     const result = store.create(callId, payload, priority, now);
-    return { status: 'saved', demo: true, ...result, priority, automatic_booking_allowed: priority === 'routine', delivery: 'Saved to the demo dispatch review queue. No external notification or technician dispatch has occurred.' };
+    return { status: 'saved', demo: true, ...result, priority, automatic_booking_allowed: ['routine', 'urgent'].includes(priority) && propertyType === 'residential' && coverage.status === 'covered' && risk.hazard === 'none', delivery: 'Saved to the demo dispatch review queue. No external notification or technician dispatch has occurred.' };
   }
   if (name === 'list_appointments') {
     const args = fields(input, ['request_id']);
     const request = store.getRequest(text(args, 'request_id', 100), callId);
-    if (request.priority !== 'routine') return { status: 'review_required', demo: true, slots: [] };
-    return { status: 'available', demo: true, timezone: 'America/New_York', slots: store.available(now), reservation_held: false };
+    if (!['routine', 'urgent'].includes(request.priority) || request.payload.property_type !== 'residential' || request.payload.coverage.status !== 'covered' || request.payload.hazard !== 'none') return { status: 'review_required', demo: true, slots: [] };
+    return { status: 'available', demo: true, timezone: 'America/New_York', priority: request.priority, slots: store.available(now, request.priority), reservation_held: false };
   }
   if (name === 'book_appointment') {
     const args = fields(input, ['request_id', 'slot_id', 'caller_confirmed']);
     if (args.caller_confirmed !== true) throw new ValidationError('Confirm the exact appointment window with the caller before booking.');
-    const result = store.book(text(args, 'request_id', 100), callId, text(args, 'slot_id', 100), now);
-    return { ...result, demo: true, timezone: 'America/New_York', ...(result.status === 'slot_unavailable' ? { alternatives: store.available(now) } : {}) };
+    const requestId = text(args, 'request_id', 100);
+    const request = store.getRequest(requestId, callId);
+    const result = store.book(requestId, callId, text(args, 'slot_id', 100), now);
+    return { ...result, demo: true, timezone: 'America/New_York', ...(result.status === 'slot_unavailable' ? { alternatives: store.available(now, request.priority) } : {}) };
   }
   throw new ValidationError('Unsupported tool.');
 }
