@@ -64,25 +64,17 @@
             "description": "Reported safety condition. Unknown when unresolved. Speak emergency guidance immediately before calling tools."
           },
           "vulnerable_occupant": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Caller reports older adult or medical vulnerability relevant to outage; null if unknown. No diagnoses needed."
+            "type": "boolean",
+            "description": "Caller reports older adult or medical vulnerability relevant to outage; omit if unknown. No diagnoses needed."
           },
           "severe_weather": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Caller reports current extreme heat/cold; null if unknown. No live weather integration."
+            "type": "boolean",
+            "description": "Caller reports current extreme heat/cold; omit if unknown. No live weather integration."
           }
         },
         "required": [
           "issue_type",
-          "hazard",
-          "vulnerable_occupant",
-          "severe_weather"
+          "hazard"
         ],
         "additionalProperties": false
       }
@@ -225,18 +217,12 @@
             "description": "Reported safety condition. Unknown when unresolved. Speak emergency guidance immediately before calling tools."
           },
           "vulnerable_occupant": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Caller reports older adult or medical vulnerability relevant to outage; null if unknown. No diagnoses needed."
+            "type": "boolean",
+            "description": "Caller reports older adult or medical vulnerability relevant to outage; omit if unknown. No diagnoses needed."
           },
           "severe_weather": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "Caller reports current extreme heat/cold; null if unknown. No live weather integration."
+            "type": "boolean",
+            "description": "Caller reports current extreme heat/cold; omit if unknown. No live weather integration."
           }
         },
         "required": [
@@ -252,9 +238,7 @@
           "access_notes",
           "consent_to_save",
           "issue_type",
-          "hazard",
-          "vulnerable_occupant",
-          "severe_weather"
+          "hazard"
         ],
         "additionalProperties": false
       }

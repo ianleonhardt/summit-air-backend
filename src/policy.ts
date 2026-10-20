@@ -18,7 +18,7 @@ export function choice<T extends string>(input: Record<string, unknown>, key: st
   return value as T;
 }
 function knownBoolean(input: Record<string, unknown>, key: string): boolean | null {
-  const value = input[key];
+  const value = input[key] ?? null;
   if (value !== true && value !== false && value !== null) throw new ValidationError(`${key} must be true, false, or null when unknown.`);
   return value;
 }

@@ -42,6 +42,7 @@ test('triage prioritizes vulnerability, winter no heat, weather, and uncertainty
   assert.equal(assessSituation({...risk,severe_weather:true},now).priority,'urgent');
   assert.equal(assessSituation({...risk,vulnerable_occupant:null},now).priority,'review');
   assert.equal(assessSituation({...risk,hazard:'unknown'},now).priority,'review');
+  assert.equal(assessSituation({...risk,vulnerable_occupant:undefined,severe_weather:undefined},now).priority,'review');
   assert.equal(assessSituation(risk,now).priority,'routine');
   assert.throws(()=>assessSituation({...risk,vulnerable_occupant:'no'},now));
 });
