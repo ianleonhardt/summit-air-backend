@@ -1,1 +1,0 @@
-{"message":{"type":"tool-calls","toolCallList":[{"id":"demo-tool-call-1","type":"function","function":{"name":"lookup_customer","arguments":{"phone_number":"202-555-0101","full_name":"Alex Morgan"}}}]}}
