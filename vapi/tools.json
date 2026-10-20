@@ -123,7 +123,7 @@
     "async": false,
     "function": {
       "name": "create_service_request",
-      "description": "Save one demo request per call after the caller asks to book or record the service, or agrees to saving. Only saved confirms recording. Returns priority and booking eligibility.",
+      "description": "Save or update the same unbooked request for this call using ALL current intake details. After clarification resend corrected facts; missing_fields and next_question explain how to recover. If automatic_booking_allowed is true, immediately list appointments. Booked requests cannot change.",
       "parameters": {
         "type": "object",
         "properties": {

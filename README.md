@@ -35,7 +35,7 @@ Safety interrupts every stage. Emergency scripts live directly in the Vapi promp
 - Urgent: complete heating/cooling outage with reported vulnerable occupant or severe weather; also no heat November-March in New York time. These are conservative demo rules requiring customer approval, not clinical triage or live weather data.
 - Unresolved safety/outage risk -> review. Membership never overrides urgency.
 - Booking: two fictional two-hour windows per day over a rolling future schedule, one booking per window, weekends included. This is conservative capacity, **not a simulation of Summit Air's 40 technicians**, skills, travel times, working hours, or real emergency staffing. Slots are stored in UTC; responses include `America/New_York` and a DST-aware `local_window`. Urgent HVAC requests use separate reserved windows as detailed below.
-- One saved request per Vapi call, one booking per request. Correct before save. Changes after save, cancellation, rescheduling, or multiple properties need team review; no tools exist for those actions yet.
+- One saved request per Vapi call, one booking per request. Correct before save. Before booking, resend all corrected intake details to create_service_request to update the same request and recompute eligibility. Already-booked changes, cancellation, rescheduling, or multiple properties need team review.
 - No production CRM, real dispatch alerts, outbound message delivery, prices, promised benefits, or callback SLA. The local queue is an actual saved demo handoff, not evidence someone is watching it. Production needs a staffed queue and acknowledged notifications before accepting unattended urgent calls.
 
 ## Customer fixtures
@@ -91,7 +91,7 @@ The response contains one string `result` or string `error` per `toolCallId`. Ma
 
 SQLite stores requests, slots and bookings. `BEGIN IMMEDIATE` serializes writers sharing the file. A unique slot ID in the booking table prevents double booking; a unique request ID prevents multiple appointments for one request. The transaction checks availability and inserts the booking together. Listing alone does not reserve a slot. Two callers can hear the same offer; the first committed booking wins, the other receives a conflict and fresh alternatives requiring fresh caller consent.
 
-Request creation is idempotent per Vapi call ID. An identical retry returns the same request ID; different intake for an already-saved call requires review. Booking retries for the same request/slot return the existing booking ID; a different slot cannot silently overwrite it. A timeout can occur after commit, so retry the same operation rather than assuming it failed. No automatic cross-call deduplication: repeat callers require review.
+Request creation is idempotent per Vapi call ID. An identical retry returns the same request ID; corrected intake updates the same unbooked request atomically. Updates after booking are rejected. Missing risk answers return missing_fields and next_question so the assistant can clarify and resume scheduling. Booking retries for the same request/slot return the existing booking ID; a different slot cannot silently overwrite it. A timeout can occur after commit, so retry the same operation rather than assuming it failed. No automatic cross-call deduplication: repeat callers require review.
 
 ## Deploy to Railway and connect Vapi
 

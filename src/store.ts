@@ -67,7 +67,13 @@ export function openStore(path: string) {
       return transaction(() => {
         const existing = db.prepare('SELECT * FROM requests WHERE call_id=?').get(callId);
         if (existing) {
-          if (existing.payload !== encoded) throw new ValidationError('This call already has a different saved request. Do not create another; explain that the team must review corrections.');
+          if (existing.payload !== encoded || existing.priority !== priority) {
+            if (db.prepare('SELECT id FROM bookings WHERE request_id=?').get(String(existing.id))) {
+              throw new ValidationError('This request is already booked. Changes require team review; the booking has not been changed.');
+            }
+            db.prepare('UPDATE requests SET payload=?, priority=? WHERE id=?').run(encoded, priority, String(existing.id));
+            return { request_id: String(existing.id), replayed: false, updated: true };
+          }
           return { request_id: String(existing.id), replayed: true };
         }
         const id = `req-${randomUUID()}`;

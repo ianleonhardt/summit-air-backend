@@ -56,7 +56,7 @@ test('saved request is idempotent, retains intake details, and derives membershi
     const row=store.queue()[0]!;
     assert.equal(row.details.membership.customer.membership.status,'active');
     assert.equal(row.details.access_notes,input.access_notes);
-    assert.throws(()=>execute(store,'create_service_request',{...input,issue_summary:'changed'}));
+    assert.equal(execute(store,'create_service_request',{...input,issue_summary:'changed'}).updated,true);
     assert.throws(()=>runTool('create_service_request',input,undefined,store,now));
     assert.throws(()=>execute(store,'create_service_request',{...input,consent_to_save:false},'other'));
     assert.throws(()=>execute(store,'create_service_request',{...input,phone_number:'911'},'other'));
@@ -173,5 +173,54 @@ test('known negative outage answers allow routine booking, unknown answers requi
     assert.equal(routine.automatic_booking_allowed,true);
     const unresolved=execute(store,'create_service_request',{...input,issue_type:'no_heat',vulnerable_occupant:undefined,severe_weather:undefined},'unknown');
     assert.equal(unresolved.automatic_booking_allowed,false);
+  } finally {store.close();}
+});
+
+test('missing weather can be clarified after save and booked, with stable request and protected booking', () => {
+  for (const weather of [false, true]) {
+    const store=openStore(':memory:');
+    try {
+      const incomplete={...input,issue_type:'no_ac',severe_weather:undefined};
+      const assessment=execute(store,'assess_situation',incompleteRisk(incomplete));
+      assert.deepEqual(assessment.missing_fields,['severe_weather']);
+      assert.match(assessment.next_question,/extreme heat/);
+      const saved=execute(store,'create_service_request',incomplete);
+      assert.equal(saved.automatic_booking_allowed,false);
+      const blocked=execute(store,'list_appointments',{request_id:saved.request_id});
+      assert.deepEqual(blocked.missing_fields,['severe_weather']);
+      const corrected={...incomplete,severe_weather:weather};
+      const updated=execute(store,'create_service_request',corrected);
+      assert.equal(updated.request_id,saved.request_id);
+      assert.equal(updated.updated,true);
+      assert.equal(updated.priority,weather?'urgent':'routine');
+      assert.equal(updated.automatic_booking_allowed,true);
+      assert.equal(execute(store,'create_service_request',corrected).replayed,true);
+      const slot=execute(store,'list_appointments',{request_id:saved.request_id}).slots[0];
+      const booked=execute(store,'book_appointment',{request_id:saved.request_id,slot_id:slot.slot_id,caller_confirmed:true});
+      assert.equal(booked.status,'booked');
+      assert.throws(()=>execute(store,'create_service_request',{...corrected,issue_summary:'changed after booking'}),/already booked/);
+      assert.equal(store.queue().length,1);
+      assert.equal(store.queue()[0].booking_id,booked.booking_id);
+      assert.equal(store.queue()[0].details.severe_weather,weather);
+    } finally {store.close();}
+  }
+});
+function incompleteRisk(value: typeof input | Record<string,unknown>) {
+  return {issue_type:value.issue_type,hazard:value.hazard,vulnerable_occupant:value.vulnerable_occupant,severe_weather:value.severe_weather};
+}
+test('clarification does not bypass unresolved hazards or coverage and cannot cross calls', () => {
+  const store=openStore(':memory:');
+  try {
+    const saved=execute(store,'create_service_request',{...input,issue_type:'no_ac',severe_weather:undefined});
+    const corrected=execute(store,'create_service_request',{...input,issue_type:'no_ac',hazard:'unknown'});
+    assert.equal(corrected.request_id,saved.request_id);
+    assert.equal(corrected.automatic_booking_allowed,false);
+    assert.deepEqual(corrected.missing_fields,['hazard']);
+    const outside=execute(store,'create_service_request',{...input,location:'Bronx'});
+    assert.equal(outside.automatic_booking_allowed,false);
+    assert.equal(outside.next_action,'coverage_review');
+    const other=execute(store,'create_service_request',input,'other');
+    assert.notEqual(other.request_id,saved.request_id);
+    assert.throws(()=>execute(store,'list_appointments',{request_id:saved.request_id},'other'));
   } finally {store.close();}
 });
