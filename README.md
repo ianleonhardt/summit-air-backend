@@ -127,3 +127,5 @@ The existing `end_after_message` tool uses a custom Request Start message: "Than
 Demo availability is generated for the next seven days at 14:00 and 18:00 UTC, each lasting two hours, with one booking per window. In daylight saving time these are 10 AM–noon and 2–4 PM New York time; in standard time they are 9–11 AM and 1–3 PM. The returned `local_window` is authoritative. These are fictional capacity, not real technician dispatch.
 
 If call logs show HTTP 401, check that the saved Vapi Bearer Token credential exactly matches Railway's `VAPI_WEBHOOK_SECRET`. Direct backend authentication succeeding does not prove Vapi's saved token matches. Never disable authentication to resolve this.
+
+Turn-taking tuning: Wait Seconds 0.8; On Punctuation Seconds 0.6; On No Punctuation Seconds 1.5; On Number Seconds 1.5; Back Off Seconds 2. These allow pauses while reading numbers and give the caller time after interrupting. Validate with another live call. Before publishing from another browser tab, refresh it and check the current prompt plus all seven attached tools (six backend functions and end_after_message); an old draft can overwrite newer settings.
