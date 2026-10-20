@@ -117,3 +117,13 @@ Use a real scheduling/CRM integration or a shared transactional database with co
 - Gas emergency guidance: https://www.coned.com/en/safety/energy-safety/gas-safety
 
 The emergency wording is grounded in utility guidance. The HVAC priority thresholds and fictional booking capacity are demo business assumptions requiring approval, not medical recommendations.
+
+### Voice settings and demo call checks
+
+Vapi assistant: Clara (Vapi Voices v2), speed 0.90. First message: "Thanks for calling Summit Air. I'm the AI assistant. How can I help today?" The system prompt uses `{{customer.number}}` for caller ID. Caller ID is a callback candidate, not identity verification; ask once whether to use it, and accept "use this number" without another confirmation.
+
+The existing `end_after_message` tool uses a custom Request Start message: "Thank you for calling Summit Air. Take care. Goodbye." Enable "Wait for selected message to be spoken before triggering tool call" so the goodbye finishes before disconnecting.
+
+Demo availability is generated for the next seven days at 14:00 and 18:00 UTC, each lasting two hours, with one booking per window. In daylight saving time these are 10 AM–noon and 2–4 PM New York time; in standard time they are 9–11 AM and 1–3 PM. The returned `local_window` is authoritative. These are fictional capacity, not real technician dispatch.
+
+If call logs show HTTP 401, check that the saved Vapi Bearer Token credential exactly matches Railway's `VAPI_WEBHOOK_SECRET`. Direct backend authentication succeeding does not prove Vapi's saved token matches. Never disable authentication to resolve this.
