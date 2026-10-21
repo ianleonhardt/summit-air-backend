@@ -4,7 +4,7 @@
     "async": false,
     "function": {
       "name": "lookup_customer",
-      "description": "Look up demo membership using caller-confirmed phone and name. A match does not verify identity.",
+      "description": "Required next action once caller full name and usable callback number are known, before more routine intake questions. Automatically check membership; do not wait for a membership question. Use a supplied alternate number instead of caller ID. Reuse a successful result unless name/number changes. A match does not verify identity.",
       "parameters": {
         "type": "object",
         "properties": {
