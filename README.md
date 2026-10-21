@@ -1,9 +1,9 @@
-# Summit Air — HVAC phone assistant
+# Summit Air Voice Intake
 
-Built for the Revin FDE case study: a Vapi phone assistant connected to a TypeScript backend for residential HVAC intake, customer membership lookup, service-area checks, urgency assessment, and appointment booking.
+A voice assistant built for the Revin FDE case study to help Summit Air handle residential HVAC service calls.
 
-The backend uses SQLite to persist service requests and bookings, with authentication, input validation, and transaction safeguards against double booking. Automated tests cover routine and urgent workflows, missing-information recovery, retries, concurrent bookings, and large Vapi requests.
+The assistant collects service details, checks existing customer membership, identifies urgent situations, and helps callers book an available appointment. It uses information callers have already provided to avoid unnecessary questions.
 
-Service coverage assumes Manhattan, Brooklyn, and Queens. Customer records and appointment capacity are fictional; no real technicians are dispatched and no notifications or callbacks are arranged.
+The project uses fictional customer records and appointment availability. Bookings are saved, but no real technicians are dispatched or external notifications sent.
 
-**Stack:** Vapi · TypeScript · Node.js · SQLite · Railway
+Built with Vapi, TypeScript, SQLite, and Railway.
