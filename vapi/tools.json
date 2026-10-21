@@ -253,7 +253,7 @@
     "async": false,
     "function": {
       "name": "list_appointments",
-      "description": "List available appointment windows for this saved request. Backend selects regular or reserved urgent capacity. Slots are not held; use returned local_window and slot_id.",
+      "description": "List available windows for this saved request: up to 16 routine windows across today and the next seven days, or reserved urgent capacity. Search all returned dates for caller preferences, but speak only up to two matching options at a time. Slots are not held; use returned local_window and slot_id.",
       "parameters": {
         "type": "object",
         "properties": {

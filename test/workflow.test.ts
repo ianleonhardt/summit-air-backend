@@ -240,3 +240,25 @@ test('indoor risk needs no weather answer; clear urgency skips redundant questio
   assert.equal(assessSituation({...base,severe_weather:false},now).priority,'routine');
   assert.throws(()=>assessSituation({...base,indoor_conditions_unsafe:'no'},now));
 });
+
+
+test('Thursday morning exposes same-day afternoon, Friday and Monday; booked slots stay unavailable', () => {
+  const store=openStore(':memory:');
+  const thursday=new Date('2026-10-22T13:00:00Z'); // 9am New York; fresh database.
+  const run=(name:string,args:unknown):any=>runTool(name,args,'thursday-demo',store,thursday);
+  try {
+    const saved=run('create_service_request',input);
+    const listed=run('list_appointments',{request_id:saved.request_id});
+    for (const start of ['2026-10-22T18:00:00.000Z','2026-10-23T14:00:00.000Z','2026-10-23T18:00:00.000Z','2026-10-26T14:00:00.000Z','2026-10-26T18:00:00.000Z']) {
+      assert.ok(listed.slots.some((s:any)=>s.start_at===start),start);
+    }
+    assert.ok(listed.slots.every((s:any)=>+new Date(s.start_at)>=+thursday+3600000));
+    const monday=listed.slots.find((s:any)=>s.start_at==='2026-10-26T18:00:00.000Z');
+    assert.match(monday.local_window,/Monday.*2:00 PM/);
+    const booked=run('book_appointment',{request_id:saved.request_id,slot_id:monday.slot_id,caller_confirmed:true});
+    assert.equal(booked.status,'booked');
+    assert.ok(!run('list_appointments',{request_id:saved.request_id}).slots.some((s:any)=>s.slot_id===monday.slot_id));
+    // Previously seeded windows must also respect the lead time as the clock advances.
+    assert.ok(store.available(new Date('2026-10-22T13:30:00Z')).every(s=>+new Date(String(s.start_at))>=+new Date('2026-10-22T14:30:00Z')));
+  } finally {store.close();}
+});

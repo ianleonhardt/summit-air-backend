@@ -37,10 +37,12 @@ export function openStore(path: string) {
       }
       return;
     }
-    // Two conservative demo windows/day, not a model of the real 40-tech fleet.
+    // Two demo windows/day, including today with at least one hour lead time.
+    // This is simulated capacity, not a model of the real 40-tech fleet.
     const insert = db.prepare('INSERT OR IGNORE INTO slots VALUES (?, ?, ?)');
-    for (let day = 1; day <= 7; day++) for (const hour of [14, 18]) {
+    for (let day = 0; day <= 7; day++) for (const hour of [14, 18]) {
       const start = new Date(now); start.setUTCDate(start.getUTCDate() + day); start.setUTCHours(hour, 0, 0, 0);
+      if (+start - +now < 3600000) continue;
       const startAt = start.toISOString(); const endAt = new Date(+start + 2 * 3600000).toISOString();
       insert.run(`demo-${startAt}`, startAt, endAt);
     }
@@ -53,7 +55,7 @@ export function openStore(path: string) {
   function available(now: Date, priority = 'routine') {
     seedSlots(now, priority);
     return db.prepare(`SELECT s.id AS slot_id, s.start_at, s.end_at FROM slots s
-      LEFT JOIN bookings b ON b.slot_id=s.id WHERE b.id IS NULL AND s.start_at > ? AND s.id LIKE ? ORDER BY s.start_at LIMIT 6`).all(now.toISOString(), priority === 'urgent' ? 'urgent-demo-%' : 'demo-%').map(row => slotView(row));
+      LEFT JOIN bookings b ON b.slot_id=s.id WHERE b.id IS NULL AND s.start_at >= ? AND s.id LIKE ? ORDER BY s.start_at LIMIT ?`).all(new Date(+now + 3600000).toISOString(), priority === 'urgent' ? 'urgent-demo-%' : 'demo-%', priority === 'urgent' ? 6 : 16).map(row => slotView(row));
   }
   function getRequest(id: string, callId: string) {
     const row = db.prepare('SELECT * FROM requests WHERE id=? AND call_id=?').get(id, callId);
