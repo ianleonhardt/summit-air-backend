@@ -56,7 +56,7 @@ test('active member returns Vapi string result without address or phone', async 
   const result = JSON.parse(body.results[0].result);
   assert.equal(result.status,'found'); assert.equal(result.customer.membership.status,'active');
   assert.equal(result.identity_verified,false); assert.equal(result.demo,true);
-  assert.equal(result.customer.serviceAddress,undefined); assert.equal(result.customer.phone,undefined);
+  assert.equal(result.customer.service_address,undefined); assert.equal(result.customer.phone,undefined);
 });
 test('batch correlates all calls and isolates failures', async () => {
   const res = await post(envelope(call('a',JSON.stringify({phone_number:'2125550102'})), call('b',{phone_number:'2125550103'}),call('c',{},'unknown'),call('d','{'),call('e',{phone_number:'bad'})));
@@ -101,4 +101,17 @@ test('full Vapi webhook with prompt, tools and long history saves, books and ret
   assert.equal(data.requests[0].booking_id,booking.booking_id);
   const missingContext=await post(envelope(call('no-context',args,'create_service_request')));
   assert.match((await missingContext.json()).results[0].error,/call.id/);
+});
+
+test('fictional saved address is offered only for a unique name and phone match', async () => {
+  const response=await post(envelope(call('address',{phone_number:'2125550101',full_name:'Alex Morgan'})));
+  const result=JSON.parse((await response.json()).results[0].result);
+  assert.equal(result.customer.service_address,'101 Demo Lane, Apt 4B, Manhattan, NY 10001');
+  assert.equal(result.customer.address_confirmation_required,true);
+  assert.equal(result.identity_verified,false);
+  for (const args of [
+    {phone_number:'2125550101',full_name:'Wrong Name'},
+    {phone_number:'2125550104'},
+    {phone_number:'2125550199',full_name:'Alex Morgan'}
+  ]) assert.equal('customer' in lookupCustomer(args),false);
 });
