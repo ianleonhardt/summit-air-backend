@@ -1,3 +1,4 @@
+import { customers } from '../src/customers.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -11,7 +12,7 @@ import { assessSituation, checkServiceArea } from '../src/policy.ts';
 
 const now = new Date('2026-10-20T16:00:00Z');
 const input = {
-  full_name: 'Alex Morgan', phone_number: '2125550101', service_address: '101 Demo Lane Apt 4B, Manhattan NY 10001',
+  full_name: 'Alex Morgan', phone_number: customers[0]!.phone, service_address: '101 Demo Lane Apt 4B, Manhattan NY 10001',
   location: 'Manhattan', state: 'NY', property_type: 'residential', issue_summary: 'Annual furnace maintenance',
   system_type: 'Furnace', issue_started: 'Annual maintenance', access_notes: 'Call on arrival; apartment 4B',
   consent_to_save: true, issue_type: 'maintenance', hazard: 'none', vulnerable_occupant: false, indoor_conditions_unsafe: false

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fullVapiRequest } from './fixtures/full-vapi-request.ts';
 import { request as httpRequest } from 'node:http';
 import { createApp, MAX_WEBHOOK_BYTES } from '../src/app.ts';
-import { lookupCustomer, normalizePhone } from '../src/customers.ts';
+import { customers, lookupCustomer, normalizePhone } from '../src/customers.ts';
 const secret = 'test-only-secret-012345678901234567890';
 const server = createApp(secret);
 let base: string;
@@ -14,7 +14,7 @@ before(async () => {
   base = `http://127.0.0.1:${address.port}`;
 });
 after(async () => { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); });
-const call = (id = 'call-1', args: unknown = { phone_number: '212-555-0101' }, name = 'lookup_customer') => ({ id, type: 'function', function: { name, arguments: args } });
+const call = (id = 'call-1', args: unknown = { phone_number: customers[0]!.phone }, name = 'lookup_customer') => ({ id, type: 'function', function: { name, arguments: args } });
 const envelope = (...calls: unknown[]) => ({ message: { type: 'tool-calls', toolCallList: calls } });
 async function post(body: unknown, auth: string | null = `Bearer ${secret}`, contentType = 'application/json') {
   return fetch(`${base}/vapi/tools`, { method: 'POST', headers: { 'Content-Type': contentType, ...(auth === null ? {} : { Authorization: auth }) }, body: typeof body === 'string' ? body : JSON.stringify(body) });
@@ -23,7 +23,7 @@ test('configuration fails closed', () => { for (const value of ['', 'short', 're
 test('normalizes supported phone formats', () => { for (const value of ['2125550101', '(212) 555-0101', '+1 212-555-0101', '12125550101']) assert.equal(normalizePhone(value), '+12125550101'); });
 test('rejects invalid phones and lookup arguments', () => {
   for (const value of ['', '911', '+442071838750', '2125550101 ext 2', 'abc2125550101', null, 2125550101]) assert.throws(() => normalizePhone(value));
-  for (const args of [null, [], {}, {phone_number:'2125550101', extra: true}, {phone_number:'2125550101', full_name: 12}, {phone_number:'2125550101', full_name:' '}]) assert.throws(() => lookupCustomer(args));
+  for (const args of [null, [], {}, {phone_number:customers[0]!.phone, extra: true}, {phone_number:customers[0]!.phone, full_name: 12}, {phone_number:customers[0]!.phone, full_name:' '}]) assert.throws(() => lookupCustomer(args));
 });
 test('health is public and contains no customer data', async () => { const res = await fetch(`${base}/health`); assert.equal(res.status,200); assert.deepEqual(await res.json(),{status:'ok'}); });
 test('requires exact bearer authentication', async () => {
@@ -70,13 +70,13 @@ test('unknown, shared, mismatched, and disambiguated records', () => {
   assert.equal(lookupCustomer({phone_number:'2125550199'}).status,'not_found');
   const shared = lookupCustomer({phone_number:'2125550104'});
   assert.equal(shared.status,'ambiguous'); assert.equal('customer' in shared,false);
-  assert.equal(lookupCustomer({phone_number:'2125550101',full_name:'Wrong Person'}).status,'details_mismatch');
+  assert.equal(lookupCustomer({phone_number:customers[0]!.phone,full_name:'Wrong Person'}).status,'details_mismatch');
   const found = lookupCustomer({phone_number:'2125550104',full_name:'  SAM   rivera  '});
   assert.equal(found.status,'found'); assert.equal(found.customer?.id,'demo-004');
 });
 test('full Vapi webhook with prompt, tools and long history saves, books and retries safely', async () => {
   const args = {
-    full_name:'Alex Morgan',phone_number:'2125550101',service_address:'101 Demo Lane Apt 4B, Manhattan NY 10001',
+    full_name:'Alex Morgan',phone_number:customers[0]!.phone,service_address:'101 Demo Lane Apt 4B, Manhattan NY 10001',
     location:'Manhattan',state:'NY',property_type:'residential',issue_summary:'Annual maintenance',system_type:'Furnace',
     issue_started:'Annual service',access_notes:'Call on arrival',consent_to_save:true,
     issue_type:'maintenance',hazard:'none',vulnerable_occupant:false,severe_weather:false
@@ -104,14 +104,29 @@ test('full Vapi webhook with prompt, tools and long history saves, books and ret
 });
 
 test('fictional saved address is offered only for a unique name and phone match', async () => {
-  const response=await post(envelope(call('address',{phone_number:'2125550101',full_name:'Alex Morgan'})));
+  const response=await post(envelope(call('address',{phone_number:customers[0]!.phone,full_name:'Alex Morgan'})));
   const result=JSON.parse((await response.json()).results[0].result);
   assert.equal(result.customer.service_address,'101 Demo Lane, Apt 4B, Manhattan, NY 10001');
   assert.equal(result.customer.address_confirmation_required,true);
   assert.equal(result.identity_verified,false);
   for (const args of [
-    {phone_number:'2125550101',full_name:'Wrong Name'},
+    {phone_number:customers[0]!.phone,full_name:'Wrong Name'},
     {phone_number:'2125550104'},
     {phone_number:'2125550199',full_name:'Alex Morgan'}
   ]) assert.equal('customer' in lookupCustomer(args),false);
+});
+
+
+test('caller ID finds candidate name and membership before name confirmation, but not address', () => {
+  const candidate=lookupCustomer({phone_number:customers[0]!.phone});
+  assert.equal(candidate.status,'found');
+  assert.equal(candidate.customer?.full_name,'Alex Morgan');
+  assert.equal(candidate.customer?.membership.status,'active');
+  assert.equal(candidate.customer?.name_confirmation_required,true);
+  assert.equal('service_address' in candidate.customer!,false);
+  assert.equal(candidate.identity_verified,false);
+  const confirmed=lookupCustomer({phone_number:customers[0]!.phone,full_name:'Alex Morgan'});
+  assert.equal(confirmed.customer?.name_confirmation_required,false);
+  assert.equal(confirmed.customer?.address_confirmation_required,true);
+  assert.equal('customer' in lookupCustomer({phone_number:customers[0]!.phone,full_name:'Someone Else'}),false);
 });

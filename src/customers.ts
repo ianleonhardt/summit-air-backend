@@ -33,7 +33,7 @@ export function lookupCustomer(input: unknown) {
   if (byPhone.length === 0) return { status: 'not_found', demo: true, identity_verified: false };
   if (matches.length !== 1) return { status: matches.length > 1 ? 'ambiguous' : 'details_mismatch', demo: true, identity_verified: false };
   const customer = matches[0]!;
-  return { status: 'found', demo: true, identity_verified: false, customer: { id: customer.id, full_name: customer.fullName, membership: customer.membership,
+  return { status: 'found', demo: true, identity_verified: false, customer: { id: customer.id, full_name: customer.fullName, membership: customer.membership, name_confirmation_required: !name,
     // Fictional case-study records only. Name + phone is not production identity verification.
     ...(name ? { service_address: customer.serviceAddress, county: customer.county, state: 'NY', address_confirmation_required: true } : {})
   } };

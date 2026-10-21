@@ -4,19 +4,19 @@
     "async": false,
     "function": {
       "name": "lookup_customer",
-      "description": "Required next action once caller full name and usable callback number are known, before more routine intake questions. Automatically check membership; do not wait for a membership question. Use a supplied alternate number instead of caller ID. Reuse a successful result unless name/number changes. A match does not verify identity. For a unique name-and-number match, returns a fictional service_address: offer it for confirmation instead of asking the caller to recite it. Never assume it is the current job address.",
+      "description": "At call start, look up usable incoming caller ID immediately with phone_number only; do not wait for name or callback confirmation. A unique match returns a candidate name and membership. Confirm the name before acknowledging membership, then look up again with confirmed full_name to retrieve the saved address. If shared, mismatched or denied, clarify without exposing candidates. Alternate callback numbers require a fresh lookup. Caller ID is not identity verification.",
       "parameters": {
         "type": "object",
         "properties": {
           "phone_number": {
             "type": "string",
-            "description": "Best callback number: use caller ID if the caller agrees to use this number; otherwise read back a supplied number once.",
+            "description": "For initial lookup use incoming caller ID without waiting for callback confirmation. Later use a caller-supplied alternate number when provided.",
             "maxLength": 40,
             "minLength": 1
           },
           "full_name": {
             "type": "string",
-            "description": "Full name supplied by caller.",
+            "description": "Omit for initial caller-ID lookup. Supply once the caller gives or confirms their full name; never treat the candidate name as confirmed without their agreement.",
             "maxLength": 100,
             "minLength": 1
           }
