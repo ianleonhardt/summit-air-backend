@@ -1,6 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createApp } from '../src/app.ts';
+import { fullVapiRequest } from './fixtures/full-vapi-request.ts';
+import { request as httpRequest } from 'node:http';
+import { createApp, MAX_WEBHOOK_BYTES } from '../src/app.ts';
 import { lookupCustomer, normalizePhone } from '../src/customers.ts';
 const secret = 'test-only-secret-012345678901234567890';
 const server = createApp(secret);
@@ -34,7 +36,18 @@ test('rejects malformed HTTP requests', async () => {
   assert.equal((await fetch(`${base}/missing`)).status,404);
   assert.equal((await fetch(`${base}/vapi/tools`,{headers:{Authorization:`Bearer ${secret}`}})).status,405);
 });
-test('limits body size', async () => { assert.equal((await post(JSON.stringify({padding:'x'.repeat(66000)}))).status,413); });
+test('rejects bodies above 2 MiB with and without Content-Length', async () => {
+  const body=JSON.stringify({padding:'x'.repeat(MAX_WEBHOOK_BYTES)});
+  assert.equal((await post(body)).status,413);
+  const status=await new Promise<number|undefined>((resolve,reject)=>{
+    const req=httpRequest(base+'/vapi/tools',{method:'POST',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json','Transfer-Encoding':'chunked'}},res=>{
+      res.resume();res.on('end',()=>resolve(res.statusCode));
+    });
+    req.on('error',reject);
+    req.write(body.slice(0,1000000));req.end(body.slice(1000000));
+  });
+  assert.equal(status,413);
+});
 test('active member returns Vapi string result without address or phone', async () => {
   const res = await post(envelope(call())); assert.equal(res.status,200);
   assert.equal(res.headers.get('cache-control'),'no-store');
@@ -61,7 +74,7 @@ test('unknown, shared, mismatched, and disambiguated records', () => {
   const found = lookupCustomer({phone_number:'2125550104',full_name:'  SAM   rivera  '});
   assert.equal(found.status,'found'); assert.equal(found.customer?.id,'demo-004');
 });
-test('HTTP workflow saves, books, retries safely, and exposes an authenticated review queue', async () => {
+test('full Vapi webhook with prompt, tools and long history saves, books and retries safely', async () => {
   const args = {
     full_name:'Alex Morgan',phone_number:'2125550101',service_address:'101 Demo Lane Apt 4B, Manhattan NY 10001',
     location:'Manhattan',state:'NY',property_type:'residential',issue_summary:'Annual maintenance',system_type:'Furnace',
@@ -69,7 +82,9 @@ test('HTTP workflow saves, books, retries safely, and exposes an authenticated r
     issue_type:'maintenance',hazard:'none',vulnerable_occupant:false,severe_weather:false
   };
   async function tool(name: string, input: unknown) {
-    const body = {message:{...envelope(call('workflow-tool',input,name)).message,call:{id:'http-workflow'}}};
+    const body = fullVapiRequest(name,input,'http-workflow','workflow-tool');
+    const bytes=Buffer.byteLength(JSON.stringify(body));
+    assert.ok(bytes>65_536 && bytes<MAX_WEBHOOK_BYTES);
     const response=await post(body); assert.equal(response.status,200);
     const result=(await response.json()).results[0]; assert.equal(result.error,undefined);
     return JSON.parse(result.result);

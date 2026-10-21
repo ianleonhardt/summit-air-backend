@@ -4,6 +4,9 @@ import { object, ValidationError } from './customers.ts';
 import { openStore, type Store } from './store.ts';
 import { runTool } from './tools.ts';
 
+// Vapi includes assistant configuration and conversation history in tool webhooks.
+export const MAX_WEBHOOK_BYTES = 2 * 1024 * 1024;
+
 function reply(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   res.end(JSON.stringify(body));
@@ -26,11 +29,13 @@ export function createApp(secret: string, store?: Store) {
       }
       if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return reply(res, 405, { error: 'Method not allowed' }); }
       if (req.headers['content-type']?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return reply(res, 415, { error: 'Expected application/json' });
+      const declaredSize = Number(req.headers['content-length']);
+      if (declaredSize > MAX_WEBHOOK_BYTES) return reply(res, 413, { error: 'Request too large' });
       const chunks: Buffer[] = [];
       let size = 0;
       for await (const chunk of req) {
         size += chunk.length;
-        if (size > 65_536) { reply(res, 413, { error: 'Request too large' }); return; }
+        if (size > MAX_WEBHOOK_BYTES) { reply(res, 413, { error: 'Request too large' }); return; }
         chunks.push(Buffer.from(chunk));
       }
       let body: unknown;
@@ -53,7 +58,7 @@ export function createApp(secret: string, store?: Store) {
           }
           return { toolCallId: call.id, result: JSON.stringify(runTool(call.function.name, args, object(message?.call) && typeof message.call.id === 'string' && message.call.id.trim() ? message.call.id : undefined, database)) };
         } catch (error) {
-          return { toolCallId: call.id, error: error instanceof ValidationError ? error.message : 'Tool unavailable. Do not claim a request was saved or booked. Retry the identical operation or ask the team to verify the outcome.' };
+          return { toolCallId: call.id, error: error instanceof ValidationError ? error.message : 'Tool unavailable. Do not claim a request was saved or booked. Retry the identical operation once. If still uncertain, say the outcome cannot be verified. No team notification or follow-up has been arranged.' };
         }
       });
       return reply(res, 200, { results });

@@ -132,3 +132,5 @@ Turn-taking tuning: Wait Seconds 0.8; On Punctuation Seconds 0.6; On No Punctuat
 
 
 Updated urgent booking policy: covered residential HVAC outages with no immediate hazard may book reserved urgent windows. Reserved windows are 8am, noon, 4pm and 8pm New York time within the next 36 hours, with at least one hour lead time and a two-hour duration. Routine and urgent capacity are separate; each window permits one booking. Unknown hazard, property, or coverage still blocks booking. Clarify missing outage risk facts before saving; preserve explicit yes/no answers. Emergency hazards never book. This is simulated inventory with no real dispatch or alerts.
+
+Vapi webhook bodies are capped at 2 MiB, checked by declared length and streamed byte count. HTTP booking tests use a synthetic full webhook containing the assistant prompt, six tool definitions, and long conversation history exceeding the former 64 KiB limit. Saving a request does not send notifications or promise human follow-up.
