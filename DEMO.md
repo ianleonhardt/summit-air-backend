@@ -28,7 +28,8 @@ Don't call it production-ready. Explain the boundary once, then demonstrate rath
 | Gas/CO/fire or medical emergency mid-booking | Emergency guidance interrupts intake, not a database/tool wait. |
 | Risk details unknown/refused | Review rather than defaulting risk flags to false. |
 | Caller corrects callback before save | Readback and corrected input; original value not silently saved. |
-| Caller corrects saved data or asks to reschedule | Honest team-review boundary; no claim the record was edited. |
+| Caller clarifies an unbooked request | Update the same request, reassess eligibility, and continue scheduling. |
+| Caller changes an already-booked request or asks to reschedule | Honest team-review boundary; no claim the booking was changed. |
 | Caller declines saving | No request or booking. |
 | Simultaneous callers choose the same slot | Exactly one booking; other caller offered fresh alternatives with consent. |
 | Save/booking response lost after commit | Identical retry returns same IDs; no duplicate record. |
