@@ -4,7 +4,7 @@ export interface Customer {
   membership: { status: 'active' | 'expired' | 'none'; plan: string | null };
 }
 export const customers: readonly Customer[] = [
-  { id: 'demo-001', fullName: 'Alex Morgan', phone: '+12125550101', serviceAddress: '101 Demo Lane, Apt 4B, Manhattan, NY 10001', county: 'New York', membership: { status: 'active', plan: 'Summit Comfort Club' } },
+  { id: 'demo-001', fullName: 'Alex Morgan', phone: '+14154075789', serviceAddress: '101 Demo Lane, Apt 4B, Manhattan, NY 10001', county: 'New York', membership: { status: 'active', plan: 'Summit Comfort Club' } },
   { id: 'demo-002', fullName: 'Jordan Lee', phone: '+12125550102', serviceAddress: '202 Demo Avenue, Brooklyn, NY 11201', county: 'Kings', membership: { status: 'none', plan: null } },
   { id: 'demo-003', fullName: 'Taylor Reed', phone: '+12125550103', serviceAddress: '303 Demo Road, Queens, NY 11375', county: 'Queens', membership: { status: 'expired', plan: 'Summit Comfort Club' } },
   { id: 'demo-004', fullName: 'Sam Rivera', phone: '+12125550104', serviceAddress: '404 Demo Street, Apt 2A, Brooklyn, NY 11215', county: 'Kings', membership: { status: 'active', plan: 'Summit Comfort Club' } },
