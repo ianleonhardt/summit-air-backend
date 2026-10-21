@@ -48,7 +48,7 @@ export function runTool(name: string, input: unknown, callId: string | undefined
 }
 
 // Same recovery guidance is returned whether the agent saved early or tried availability early.
-function bookingGuidance(payload: { issue_type: string; hazard: string; vulnerable_occupant: boolean | null; severe_weather: boolean | null; property_type: string; coverage: { status: string } }, now: Date) {
+function bookingGuidance(payload: { issue_type: string; hazard: string; vulnerable_occupant: boolean | null; indoor_conditions_unsafe: boolean | null; property_type: string; coverage: { status: string } }, now: Date) {
   const triage = assess(situation(payload as unknown as Record<string, unknown>), now);
   const missing_fields = [...triage.missing_fields];
   if (payload.property_type === 'unknown') missing_fields.push('property_type');

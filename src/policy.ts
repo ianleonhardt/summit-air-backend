@@ -22,23 +22,24 @@ function knownBoolean(input: Record<string, unknown>, key: string): boolean | nu
   if (value !== true && value !== false && value !== null) throw new ValidationError(`${key} must be true, false, or null when unknown.`);
   return value;
 }
-export const situationKeys = ['issue_type', 'hazard', 'vulnerable_occupant', 'severe_weather'];
+export const situationKeys = ['issue_type', 'hazard', 'vulnerable_occupant', 'indoor_conditions_unsafe', 'severe_weather'];
 export function situation(input: Record<string, unknown>) {
   return {
     issue_type: choice(input, 'issue_type', ['maintenance', 'repair', 'no_heat', 'no_ac'] as const),
     hazard: choice(input, 'hazard', ['none', 'gas_smell', 'co_alarm', 'smoke_fire', 'medical_emergency', 'unknown'] as const),
     vulnerable_occupant: knownBoolean(input, 'vulnerable_occupant'),
-    severe_weather: knownBoolean(input, 'severe_weather')
+    // Accept the old field during rollout; new tools ask about indoor conditions.
+    indoor_conditions_unsafe: knownBoolean(input, 'indoor_conditions_unsafe') ?? knownBoolean(input, 'severe_weather')
   };
 }
 function classify(input: ReturnType<typeof situation>, now = new Date()) {
   if (!['none', 'unknown'].includes(input.hazard)) return { priority: 'emergency', reason: input.hazard, script: input.hazard === 'medical_emergency' ? 'Call 911 now for emergency medical help and follow the dispatcher’s instructions. Do not wait for an HVAC appointment.' : emergencyScript, automatic_booking_allowed: false };
   const outage = input.issue_type === 'no_heat' || input.issue_type === 'no_ac';
   const month = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'numeric' }).format(now));
-  if (outage && (input.vulnerable_occupant || input.severe_weather || (input.issue_type === 'no_heat' && [11, 12, 1, 2, 3].includes(month)))) {
-    return { priority: 'urgent', reason: input.vulnerable_occupant ? 'Outage with a vulnerable occupant' : input.severe_weather ? 'Outage during reported severe weather' : 'No heat during the demo winter season', script: 'I will mark this as urgent and check available priority windows. I cannot promise an arrival time before booking. If anyone is in immediate danger or needs emergency medical help, call 911.', automatic_booking_allowed: input.hazard === 'none' };
+  if (outage && (input.vulnerable_occupant || input.indoor_conditions_unsafe || (input.issue_type === 'no_heat' && [11, 12, 1, 2, 3].includes(month)))) {
+    return { priority: 'urgent', reason: input.vulnerable_occupant ? 'Outage with a vulnerable occupant' : input.indoor_conditions_unsafe ? 'Outage with reported unsafe indoor heat or cold' : 'No heat during the demo winter season', script: 'I will mark this as urgent and check available priority windows. I cannot promise an arrival time before booking. If anyone is in immediate danger or needs emergency medical help, call 911.', automatic_booking_allowed: input.hazard === 'none' };
   }
-  if (input.hazard === 'unknown' || (outage && (input.vulnerable_occupant === null || input.severe_weather === null))) return { priority: 'review', reason: 'Safety or outage risk details remain unknown', script: 'I need to clarify the missing safety detail before checking appointments.', automatic_booking_allowed: false };
+  if (input.hazard === 'unknown' || (outage && (input.vulnerable_occupant === null || input.indoor_conditions_unsafe === null))) return { priority: 'review', reason: 'Safety or outage risk details remain unknown', script: 'I need to clarify the missing safety detail before checking appointments.', automatic_booking_allowed: false };
   return { priority: 'routine', reason: 'No reported urgent risk factors', script: 'I can check the demo appointment schedule.', automatic_booking_allowed: true };
 }
 // Return actionable questions instead of turning an unanswered question into a dead end.
@@ -54,11 +55,11 @@ export function assess(input: ReturnType<typeof situation>, now = new Date()) {
     if (result.priority === 'review' && ['no_heat', 'no_ac'].includes(input.issue_type)) {
       if (input.vulnerable_occupant === null) {
         missing_fields.push('vulnerable_occupant');
-        questions.push('Is anyone at home especially at risk without heating or cooling, such as an older adult or someone with a medical condition?');
+        questions.push('Is anyone at home especially affected by the heat or cold, like an older adult, a young child, or someone with a medical condition?');
       }
-      if (input.severe_weather === null) {
-        missing_fields.push('severe_weather');
-        questions.push(input.issue_type === 'no_ac' ? 'Are you experiencing extreme heat right now?' : 'Are you experiencing extreme cold right now?');
+      if (input.indoor_conditions_unsafe === null) {
+        missing_fields.push('indoor_conditions_unsafe');
+        questions.push(input.issue_type === 'no_ac' ? 'Is it getting uncomfortably hot inside?' : 'Is it getting uncomfortably cold inside?');
       }
     }
   }

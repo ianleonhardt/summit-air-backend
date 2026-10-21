@@ -65,11 +65,11 @@
           },
           "vulnerable_occupant": {
             "type": "boolean",
-            "description": "True for a reported vulnerable occupant; false for an explicit no. Preserve the caller answer; omit ONLY if not answered."
+            "description": "True when caller reports an older adult, young child, or medically vulnerable person affected by the outage; false when denied. Infer from clear caller statements; do not repeat a question already answered. Omit when unknown."
           },
-          "severe_weather": {
+          "indoor_conditions_unsafe": {
             "type": "boolean",
-            "description": "True for reported extreme heat/cold, false when explicitly denied; omit only if unresolved. Ask a targeted weather question for outages."
+            "description": "Use caller-reported indoor conditions: true when the home is uncomfortably hot/cold or unsafe from the outage; false when caller says indoor conditions are comfortable/not concerning. Infer from clear statements already given. Ask only if unclear; never ask city temperature or invent weather. Omit when unresolved."
           }
         },
         "required": [
@@ -218,11 +218,11 @@
           },
           "vulnerable_occupant": {
             "type": "boolean",
-            "description": "True for a reported vulnerable occupant; false for an explicit no. Preserve the caller answer; omit ONLY if not answered."
+            "description": "True when caller reports an older adult, young child, or medically vulnerable person affected by the outage; false when denied. Infer from clear caller statements; do not repeat a question already answered. Omit when unknown."
           },
-          "severe_weather": {
+          "indoor_conditions_unsafe": {
             "type": "boolean",
-            "description": "True for reported extreme heat/cold, false when explicitly denied; omit only if unresolved. Ask a targeted weather question for outages."
+            "description": "Use caller-reported indoor conditions: true when the home is uncomfortably hot/cold or unsafe from the outage; false when caller says indoor conditions are comfortable/not concerning. Infer from clear statements already given. Ask only if unclear; never ask city temperature or invent weather. Omit when unresolved."
           }
         },
         "required": [

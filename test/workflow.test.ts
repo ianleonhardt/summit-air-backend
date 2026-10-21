@@ -14,7 +14,7 @@ const input = {
   full_name: 'Alex Morgan', phone_number: '2125550101', service_address: '101 Demo Lane Apt 4B, Manhattan NY 10001',
   location: 'Manhattan', state: 'NY', property_type: 'residential', issue_summary: 'Annual furnace maintenance',
   system_type: 'Furnace', issue_started: 'Annual maintenance', access_notes: 'Call on arrival; apartment 4B',
-  consent_to_save: true, issue_type: 'maintenance', hazard: 'none', vulnerable_occupant: false, severe_weather: false
+  consent_to_save: true, issue_type: 'maintenance', hazard: 'none', vulnerable_occupant: false, indoor_conditions_unsafe: false
 };
 function execute(store: ReturnType<typeof openStore>, name: string, args: unknown, callId = 'call-a'): any {
   return runTool(name, args, callId, store, now);
@@ -36,13 +36,13 @@ test('emergency precedes coverage and property eligibility and does not save', (
   } finally { store.close(); }
 });
 test('triage prioritizes vulnerability, winter no heat, weather, and uncertainty', () => {
-  const risk = {issue_type:'no_heat',hazard:'none',vulnerable_occupant:false,severe_weather:false};
+  const risk = {issue_type:'no_heat',hazard:'none',vulnerable_occupant:false,indoor_conditions_unsafe:false};
   assert.equal(assessSituation(risk,new Date('2027-01-10T12:00:00Z')).priority,'urgent');
   assert.equal(assessSituation({...risk,issue_type:'no_ac',vulnerable_occupant:true},now).priority,'urgent');
-  assert.equal(assessSituation({...risk,severe_weather:true},now).priority,'urgent');
+  assert.equal(assessSituation({...risk,indoor_conditions_unsafe:true},now).priority,'urgent');
   assert.equal(assessSituation({...risk,vulnerable_occupant:null},now).priority,'review');
   assert.equal(assessSituation({...risk,hazard:'unknown'},now).priority,'review');
-  assert.equal(assessSituation({...risk,vulnerable_occupant:undefined,severe_weather:undefined},now).priority,'review');
+  assert.equal(assessSituation({...risk,vulnerable_occupant:undefined,indoor_conditions_unsafe:undefined},now).priority,'review');
   assert.equal(assessSituation(risk,now).priority,'routine');
   assert.throws(()=>assessSituation({...risk,vulnerable_occupant:'no'},now));
 });
@@ -171,24 +171,24 @@ test('known negative outage answers allow routine booking, unknown answers requi
   try {
     const routine=execute(store,'create_service_request',{...input,issue_type:'no_heat'},'known');
     assert.equal(routine.automatic_booking_allowed,true);
-    const unresolved=execute(store,'create_service_request',{...input,issue_type:'no_heat',vulnerable_occupant:undefined,severe_weather:undefined},'unknown');
+    const unresolved=execute(store,'create_service_request',{...input,issue_type:'no_heat',vulnerable_occupant:undefined,indoor_conditions_unsafe:undefined},'unknown');
     assert.equal(unresolved.automatic_booking_allowed,false);
   } finally {store.close();}
 });
 
-test('missing weather can be clarified after save and booked, with stable request and protected booking', () => {
+test('missing indoor conditions can be clarified after save and booked, with stable request and protected booking', () => {
   for (const weather of [false, true]) {
     const store=openStore(':memory:');
     try {
-      const incomplete={...input,issue_type:'no_ac',severe_weather:undefined};
+      const incomplete={...input,issue_type:'no_ac',indoor_conditions_unsafe:undefined};
       const assessment=execute(store,'assess_situation',incompleteRisk(incomplete));
-      assert.deepEqual(assessment.missing_fields,['severe_weather']);
-      assert.match(assessment.next_question,/extreme heat/);
+      assert.deepEqual(assessment.missing_fields,['indoor_conditions_unsafe']);
+      assert.match(assessment.next_question,/hot inside/);
       const saved=execute(store,'create_service_request',incomplete);
       assert.equal(saved.automatic_booking_allowed,false);
       const blocked=execute(store,'list_appointments',{request_id:saved.request_id});
-      assert.deepEqual(blocked.missing_fields,['severe_weather']);
-      const corrected={...incomplete,severe_weather:weather};
+      assert.deepEqual(blocked.missing_fields,['indoor_conditions_unsafe']);
+      const corrected={...incomplete,indoor_conditions_unsafe:weather};
       const updated=execute(store,'create_service_request',corrected);
       assert.equal(updated.request_id,saved.request_id);
       assert.equal(updated.updated,true);
@@ -201,17 +201,17 @@ test('missing weather can be clarified after save and booked, with stable reques
       assert.throws(()=>execute(store,'create_service_request',{...corrected,issue_summary:'changed after booking'}),/already booked/);
       assert.equal(store.queue().length,1);
       assert.equal(store.queue()[0].booking_id,booked.booking_id);
-      assert.equal(store.queue()[0].details.severe_weather,weather);
+      assert.equal(store.queue()[0].details.indoor_conditions_unsafe,weather);
     } finally {store.close();}
   }
 });
 function incompleteRisk(value: typeof input | Record<string,unknown>) {
-  return {issue_type:value.issue_type,hazard:value.hazard,vulnerable_occupant:value.vulnerable_occupant,severe_weather:value.severe_weather};
+  return {issue_type:value.issue_type,hazard:value.hazard,vulnerable_occupant:value.vulnerable_occupant,indoor_conditions_unsafe:value.indoor_conditions_unsafe};
 }
 test('clarification does not bypass unresolved hazards or coverage and cannot cross calls', () => {
   const store=openStore(':memory:');
   try {
-    const saved=execute(store,'create_service_request',{...input,issue_type:'no_ac',severe_weather:undefined});
+    const saved=execute(store,'create_service_request',{...input,issue_type:'no_ac',indoor_conditions_unsafe:undefined});
     const corrected=execute(store,'create_service_request',{...input,issue_type:'no_ac',hazard:'unknown'});
     assert.equal(corrected.request_id,saved.request_id);
     assert.equal(corrected.automatic_booking_allowed,false);
@@ -223,4 +223,20 @@ test('clarification does not bypass unresolved hazards or coverage and cannot cr
     assert.notEqual(other.request_id,saved.request_id);
     assert.throws(()=>execute(store,'list_appointments',{request_id:saved.request_id},'other'));
   } finally {store.close();}
+});
+
+test('indoor risk needs no weather answer; clear urgency skips redundant questions', () => {
+  const base={issue_type:'no_ac',hazard:'none',vulnerable_occupant:false};
+  assert.equal(assessSituation({...base,indoor_conditions_unsafe:false},now).priority,'routine');
+  const hot=assessSituation({...base,indoor_conditions_unsafe:true},now);
+  assert.equal(hot.priority,'urgent'); assert.deepEqual(hot.missing_fields,[]);
+  const vulnerable=assessSituation({...base,vulnerable_occupant:true},now);
+  assert.equal(vulnerable.priority,'urgent'); assert.equal(vulnerable.next_question,null);
+  const missing=assessSituation(base,now);
+  assert.deepEqual(missing.missing_fields,['indoor_conditions_unsafe']);
+  assert.match(missing.next_question!,/hot inside/);
+  assert.equal(assessSituation({...base,issue_type:'maintenance',vulnerable_occupant:true},now).priority,'routine');
+  assert.equal(assessSituation({...base,indoor_conditions_unsafe:true,hazard:'gas_smell'},now).priority,'emergency');
+  assert.equal(assessSituation({...base,severe_weather:false},now).priority,'routine');
+  assert.throws(()=>assessSituation({...base,indoor_conditions_unsafe:'no'},now));
 });
